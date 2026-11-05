@@ -80,7 +80,7 @@ var typeRequired = map[string]string{
 
 var listFields = map[string]bool{"tags": true, "bears_on": true, "links": true, "unlocks": true, "rereads": true, "atoms": true, "items": true, "corroborations": true}
 
-var idListFields = []string{"bears_on", "links", "unlocks", "rereads", "atoms", "items", "corroborations"}
+var idListFields = []string{"bears_on", "links", "unlocks", "rereads", "atoms", "items"}
 
 var (
 	idRe     = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
@@ -174,6 +174,12 @@ func Validate(d *frontmatter.Doc, fileID string) error {
 			if !idRe.MatchString(id) {
 				return bad("field %q: bad id %q", k, id)
 			}
+		}
+	}
+	for _, e := range d.GetList("corroborations") {
+		date, sid, ok := strings.Cut(e, " ")
+		if !ok || !validDate(date) || !idRe.MatchString(sid) {
+			return bad("field %q: bad entry %q", "corroborations", e)
 		}
 	}
 	enum := func(k string, set []string) error {

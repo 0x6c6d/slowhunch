@@ -235,6 +235,15 @@ func TestAddPlaceThresholds(t *testing.T) {
 				if c := d.GetList("corroborations"); len(c) != 1 || c[0] != "2026-11-05 "+sid {
 					t.Fatalf("corroborations %v", c)
 				}
+				if ps, _, err := vault.Verify(v); err != nil {
+					t.Fatal(err)
+				} else {
+					for _, p := range ps {
+						if p.Code == "BAD_FIELD" {
+							t.Fatalf("verify: %+v", p)
+						}
+					}
+				}
 				if d.GetString("evidence") != seedAtom.Evidence || d.GetString("updated") != "2026-11-05" {
 					t.Fatalf("target changed beyond adding data: %v", d.Fields)
 				}

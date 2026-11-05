@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/0x6c6d/slowhunch/internal/frontmatter"
 	"github.com/0x6c6d/slowhunch/internal/report"
@@ -135,18 +134,9 @@ func addUnique(list []string, s string) []string {
 	return append(list, s)
 }
 
-// validateDoc checks d against the schema. Corroboration entries are
-// "<date> <source-id>" lines, so they are checked here rather than as ids.
+// validateDoc checks d against the schema.
 func validateDoc(d *frontmatter.Doc, id string) error {
-	c := d.Clone()
-	for _, e := range c.GetList("corroborations") {
-		date, sid, ok := strings.Cut(e, " ")
-		if !ok || len(date) != 10 || sid == "" {
-			return vault.Validate(d, id)
-		}
-	}
-	c.Delete("corroborations")
-	return vault.Validate(c, id)
+	return vault.Validate(d, id)
 }
 
 // applyOutcomes turns the placed atoms into new documents, additions to

@@ -151,3 +151,19 @@ func TestInboxFormat(t *testing.T) {
 		t.Error("vocab")
 	}
 }
+
+func TestValidateCorroborations(t *testing.T) {
+	ok := validDocs()["note"]
+	ok.Set("corroborations", []string{"2026-11-05 poem-larkin-trees-ab12"})
+	if err := Validate(ok, "x-1"); err != nil {
+		t.Fatalf("valid entry rejected: %v", err)
+	}
+	for _, e := range []string{"not-a-date x", "2026-11-05 Bad_ID", "2026-13-45 x", "poem-larkin-trees-ab12"} {
+		d := validDocs()["note"]
+		d.Set("corroborations", []string{e})
+		err := Validate(d, "x-1")
+		if err == nil || !strings.Contains(err.Error(), "corroborations") {
+			t.Fatalf("entry %q: want error naming field, got %v", e, err)
+		}
+	}
+}
