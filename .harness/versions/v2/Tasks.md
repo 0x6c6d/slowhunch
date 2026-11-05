@@ -33,7 +33,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T001 | 1 | Config v2 keys, defaults and validation | T000 | sonnet | done | config.go, store.go, config_test.go; v2 config keys + validation |
 | T002 | 1 | Error codes v2 | T000 | haiku | done | errs.go, errs_test.go; v2 codes + exits |
 | T003 | 1 | Git policy tests: force and rewrite ban | T000 | opus | done | policy_test.go; TestNoForceGit + TestGitOnlyGitops replace push/pull ban |
-| T004 | 1 | Review queries in internal/synth | T001 | sonnet | todo | |
+| T004 | 1 | Review queries in internal/synth | T001 | sonnet | done | internal/synth review.go + test |
 | T005 | 1 | review command | T004 | sonnet | todo | |
 | T006 | 2 | collide role and embedded prompt | T000 | sonnet | todo | |
 | T007 | 2 | Provider resolution by role and medium | T001 T006 | sonnet | todo | |
