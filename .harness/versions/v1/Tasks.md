@@ -39,7 +39,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T014 | 3 | create and get commands | T006, T011, T013 | sonnet | done | docjson.go, cmd_create.go, cmd_get.go + tests; defaults state open, status open |
 | T015 | 3 | update command: field patch with rev, topic append | T014 | opus | done | cmd_update.go + tests |
 | T016 | 3 | delete command: soft to archive, hard with yes | T011, T013, T014 | opus | done | cmd_delete.go + tests |
-| T017 | 3 | list command with filters | T011, T013, T014 | sonnet | todo | |
+| T017 | 3 | list command with filters | T011, T013, T014 | sonnet | done | cmd_list.go + tests |
 | T018 | 3 | link, unlink, backlinks, graph commands | T011, T013, T014 | sonnet | todo | |
 | T019 | 3 | hunch add, evidence, state, due commands | T006, T011, T013, T014 | sonnet | todo | |
 | T020 | 3 | source facts command | T007, T011, T013 | haiku | todo | |
