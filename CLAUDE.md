@@ -18,15 +18,16 @@ Go standard library only. `cmd/slowhunch/main.go` calls `cli.Run` and exits with
 - `internal/errs`: shared error type with stable codes and exit codes.
 - `internal/frontmatter`: parser and writer for the strict YAML-like frontmatter subset.
 - `internal/vault`: vault config, layout, index, lint, verify and transactions.
-- `internal/gitops`: the git wrapper; every git call goes through it (argv, never a shell).
-- `internal/intake`: reads and checks input text (normalization, fencing, secret detection).
-- `internal/provider`: prompts and the `Provider` interface; subpackages `openai` (chat completions), `exec` (local program, JSON over stdio) and `fake` (tests).
+- `internal/gitops`: the git wrapper; every git call goes through it (argv, never a shell). Pull is `--rebase --autostash` and aborts on conflict; push is plain `push <remote> <branch>`; behind count is read locally. Never fetch, force or rewrite history.
+- `internal/intake`: reads and checks input text (normalization, fencing, secret detection); `.pdf` text comes from `pdf.command` via `provider/exec`'s `RunArgv`.
+- `internal/provider`: prompts and the `Provider` interface; subpackages `openai` (chat completions), `exec` (local program, JSON over stdio, plus the exported argv runner `RunArgv`: PATH-only env, no shell) and `fake` (tests).
 - `internal/pipeline`: per-item steps between intake and the vault (extract, gate, place, write).
+- `internal/synth`: collide pair selection and proposals, `review` queries (read-only).
 - `internal/search`: in-memory TF-IDF index with cosine similarity.
 - `internal/report`: per-run report JSON written to `.slowhunch/reports/`.
 - `internal/policy`: repository-wide policy tests.
-- Security-critical single sites: path confinement (`vault` `GuardPath`) and atomic writes (`vault` `WriteFile`); every git call (`gitops`); the only `net/http` (`provider/openai`); the only provider `os/exec` (`provider/exec`); fencing and secret detection (`intake`).
-- Tests use temp vaults and the fake/exec providers only. The spec lives in `.harness/harness.md`.
+- Security-critical single sites: path confinement (`vault` `GuardPath`) and atomic writes (`vault` `WriteFile`); every git call (`gitops`); the only `net/http` (`provider/openai`); the only non-git `os/exec` (`provider/exec` `RunArgv`, also used for `pdf.command`); fencing and secret detection (`intake`).
+- Tests use temp vaults and the fake/exec providers only; git tests use a bare repo under a temp dir as `origin`, never a real remote. The spec lives in `.harness/harness.md`.
 
 ## Delegation workflow: supervise, don't implement
 
