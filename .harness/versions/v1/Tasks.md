@@ -51,7 +51,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T026 | 4 | stats aggregation and command | T025, T011, T013 | sonnet | done | report/stats.go, cmd_stats.go + tests |
 | T027 | 5 | Provider interface, registry, fake, JSON call with repair | T012, T003 | opus | done | provider.go, jsoncall.go, fake/fake.go + tests |
 | T028 | 5 | openai-compatible provider | T027 | opus | done | provider/openai + tests; only net/http importer |
-| T029 | 5 | exec provider with scrubbed environment | T027 | opus | todo | |
+| T029 | 5 | exec provider with scrubbed environment | T027 | opus | done | provider/exec + tests; scrubbed env, no shell |
 | T030 | 5 | Intake reading, input checks, medium inference | T007 | sonnet | todo | |
 | T031 | 5 | Intake normalization and text hash | T001 | sonnet | todo | |
 | T032 | 5 | Prompt fencing, look-alike neutralization, secret detector | T001 | opus | todo | |
