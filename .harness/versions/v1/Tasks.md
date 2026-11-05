@@ -25,7 +25,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T000 | 0 | Preflight | — | supervisor | done | verify passes |
 | T001 | 1 | Build scaffold: go.mod, Makefile, LICENSE, gitignore, main stub | T000 | haiku | done | go.mod, Makefile, LICENSE, .gitignore, cmd/slowhunch/main.go |
 | T002 | 1 | errs package and CLI core: dispatch, global flags, JSON envelope, exit codes | T001 | sonnet | done | internal/errs, internal/cli core, main.go |
-| T003 | 1 | Vault config defaults and minimal init | T002 | sonnet | todo | |
+| T003 | 1 | Vault config defaults and minimal init | T002 | sonnet | done | internal/vault/config.go, internal/cli/cmd_init.go + tests |
 | T004 | 1 | skill command (guide at most 60 lines) | T002 | haiku | todo | |
 | T005 | 2 | Frontmatter subset parser, canonical writer, rev | T002 | opus | todo | |
 | T006 | 2 | Id generation, slugs and collision suffixes | T001 | opus | todo | |
