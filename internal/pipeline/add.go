@@ -23,6 +23,11 @@ type Deps struct {
 	Prompts   map[string]provider.Prompt
 	Committer vault.Committer // nil = no git
 	Now       func() time.Time
+	// ProviderFor, when set, returns the provider for a role and the item's medium
+	// and takes precedence over Providers.
+	ProviderFor func(role, medium string) (provider.Provider, error)
+	// AuthorFor, when set, returns the writer string for the extract provider used.
+	AuthorFor func(role, medium string) string
 	Author    string // "agent:<provider>/<model>" for written atoms and added_by
 }
 
@@ -83,6 +88,13 @@ func foreignConflict(d Deps, noCommit bool, paths ...string) error {
 		return e
 	}
 	return nil
+}
+
+func (d Deps) provider(role, medium string) (provider.Provider, error) {
+	if d.ProviderFor != nil {
+		return d.ProviderFor(role, medium)
+	}
+	return d.Providers[role], nil
 }
 
 // Add runs one intake item from reading to commit.
@@ -167,7 +179,24 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 		Delim: delim, Force: o.Force,
 	}
 	rep.Source = report.Link(sid)
-	keep, reason, gu, gerr := Gate(ctx, d.Providers["gate"], d.Prompts["gate"], it)
+	gateP, perr0 := d.provider("gate", medium)
+	if perr0 != nil {
+		return nil, perr0
+	}
+	extractP, perr0 := d.provider("extract", medium)
+	if perr0 != nil {
+		return nil, perr0
+	}
+	placeP, perr0 := d.provider("place", medium)
+	if perr0 != nil {
+		return nil, perr0
+	}
+	if d.AuthorFor != nil {
+		if a := d.AuthorFor("extract", medium); a != "" {
+			writer = a
+		}
+	}
+	keep, reason, gu, gerr := Gate(ctx, gateP, d.Prompts["gate"], it)
 	if gu != (provider.Usage{}) {
 		rep.AddCost("gate", toUsage(gu))
 	}
@@ -188,7 +217,7 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 	}
 
 	// 5. Extract.
-	atoms, drops, eu, eerr := Extract(ctx, d.Providers["extract"], d.Prompts["extract"], it, d.Config.Caps)
+	atoms, drops, eu, eerr := Extract(ctx, extractP, d.Prompts["extract"], it, d.Config.Caps)
 	rep.AddCost("extract", toUsage(eu))
 	if eerr != nil {
 		code, msg := provErr(eerr)
@@ -230,7 +259,7 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 	var plan []placed
 	for k, a := range atoms {
 		nbs := BuildNeighbours(a, aesthetic, cands, d.Config.Place)
-		dec, pu, perr := Place(ctx, d.Providers["place"], d.Prompts["place"], a, it, nbs, d.Config.Place)
+		dec, pu, perr := Place(ctx, placeP, d.Prompts["place"], a, it, nbs, d.Config.Place)
 		if pu != (provider.Usage{}) {
 			rep.AddCost("place", toUsage(pu))
 		}

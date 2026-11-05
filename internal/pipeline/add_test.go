@@ -366,3 +366,28 @@ func TestSecret(t *testing.T) {
 		t.Fatal("secret input changed the vault")
 	}
 }
+
+func TestResolveV2Pipeline(t *testing.T) {
+	def, poem := addFake(), addFake()
+	v, r := addVault(t)
+	d := addDeps(v, r, def)
+	d.Providers = nil
+	d.ProviderFor = func(role, medium string) (provider.Provider, error) {
+		if role == "extract" && medium == "poem" {
+			return poem, nil
+		}
+		return def, nil
+	}
+	if _, err := Add(context.Background(), d, Options{Arg: addArticle, Medium: "poem", Title: "Flood", Author: "Ada"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(poem.CallsFor("extract")) != 1 || len(def.CallsFor("extract")) != 0 {
+		t.Fatalf("poem item: poem=%d default=%d", len(poem.CallsFor("extract")), len(def.CallsFor("extract")))
+	}
+	if _, err := Add(context.Background(), d, Options{Arg: addArticle2, Medium: "article", Title: "Pump", Author: "Bo"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(poem.CallsFor("extract")) != 1 || len(def.CallsFor("extract")) != 1 {
+		t.Fatalf("article item: poem=%d default=%d", len(poem.CallsFor("extract")), len(def.CallsFor("extract")))
+	}
+}

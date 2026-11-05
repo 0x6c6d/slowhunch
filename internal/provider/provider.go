@@ -66,13 +66,7 @@ func validRole(role string) bool {
 	return false
 }
 
-// Effective returns the default provider config with the role's non-empty fields applied.
-func Effective(cfg vault.Config, role string) vault.ProviderConfig {
-	eff := cfg.Provider
-	o, ok := cfg.Roles[role]
-	if !ok {
-		return eff
-	}
+func overlay(eff vault.ProviderConfig, o vault.ProviderConfig) vault.ProviderConfig {
 	if o.Name != "" {
 		eff.Name = o.Name
 	}
@@ -91,10 +85,25 @@ func Effective(cfg vault.Config, role string) vault.ProviderConfig {
 	return eff
 }
 
-// ForRole builds the provider for role (gate, extract, place or collide).
-func ForRole(cfg vault.Config, role string) (Provider, error) {
+// Effective returns the default provider config with the role's and then the
+// medium's per-role non-empty fields applied. An empty medium skips the media layer.
+func Effective(cfg vault.Config, role, medium string) vault.ProviderConfig {
+	eff := cfg.Provider
+	if o, ok := cfg.Roles[role]; ok {
+		eff = overlay(eff, o)
+	}
+	if medium != "" {
+		if o, ok := cfg.Media[medium][role]; ok {
+			eff = overlay(eff, o)
+		}
+	}
+	return eff
+}
+
+// ForRole builds the provider for role (gate, extract, place or collide) and medium.
+func ForRole(cfg vault.Config, role, medium string) (Provider, error) {
 	if !validRole(role) {
 		return nil, errs.Fatal(errs.BadInput, "unknown role "+role, "use gate, extract, place or collide")
 	}
-	return New(Effective(cfg, role))
+	return New(Effective(cfg, role, medium))
 }

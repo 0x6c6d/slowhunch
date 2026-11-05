@@ -3,6 +3,7 @@ package provider_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -49,18 +50,18 @@ func TestForRole(t *testing.T) {
 		Provider: vault.ProviderConfig{Name: "test-stub", BaseURL: "http://base", Model: "small", APIKeyEnv: "K"},
 		Roles:    map[string]vault.ProviderConfig{"place": {Model: "big"}},
 	}
-	eff := provider.Effective(cfg, "place")
+	eff := provider.Effective(cfg, "place", "")
 	if eff.Model != "big" || eff.BaseURL != "http://base" || eff.Name != "test-stub" || eff.APIKeyEnv != "K" {
 		t.Fatalf("effective: %+v", eff)
 	}
-	if provider.Effective(cfg, "gate").Model != "small" {
+	if provider.Effective(cfg, "gate", "").Model != "small" {
 		t.Fatal("gate should use default")
 	}
-	p, err := provider.ForRole(cfg, "place")
+	p, err := provider.ForRole(cfg, "place", "")
 	if err != nil || p.(*stub).cfg.Model != "big" {
 		t.Fatalf("ForRole: %v", err)
 	}
-	if _, err := provider.ForRole(cfg, "bogus"); err == nil {
+	if _, err := provider.ForRole(cfg, "bogus", ""); err == nil {
 		t.Fatal("bogus role accepted")
 	}
 }
@@ -143,5 +144,43 @@ func TestCallJSONProviderError(t *testing.T) {
 	_, err := provider.CallJSON(context.Background(), f, provider.Request{Role: "gate", User: "u"}, &o, nil)
 	if errs.CodeOf(err) != errs.ProviderError || len(f.Calls) != 1 {
 		t.Fatalf("err=%v calls=%d", err, len(f.Calls))
+	}
+}
+
+func TestResolveV2(t *testing.T) {
+	cfg := vault.Config{
+		Provider: vault.ProviderConfig{Name: "test-stub", BaseURL: "http://base", Model: "small", APIKeyEnv: "K0", Command: []string{"a", "b"}},
+		Roles: map[string]vault.ProviderConfig{
+			"extract": {Model: "role-m", APIKeyEnv: "K1"},
+			"place":   {Command: []string{"x"}},
+		},
+		Media: map[string]map[string]vault.ProviderConfig{
+			"poem": {"extract": {Model: "poem-m"}},
+		},
+	}
+	base := vault.Config{Provider: cfg.Provider}
+	tests := []struct {
+		name         string
+		cfg          vault.Config
+		role, medium string
+		want         vault.ProviderConfig
+	}{
+		{"provider only", base, "gate", "poem", cfg.Provider},
+		{"role model only", cfg, "extract", "", vault.ProviderConfig{Name: "test-stub", BaseURL: "http://base", Model: "role-m", APIKeyEnv: "K1", Command: []string{"a", "b"}}},
+		{"media beats role", cfg, "extract", "poem", vault.ProviderConfig{Name: "test-stub", BaseURL: "http://base", Model: "poem-m", APIKeyEnv: "K1", Command: []string{"a", "b"}}},
+		{"other medium no effect", cfg, "extract", "article", vault.ProviderConfig{Name: "test-stub", BaseURL: "http://base", Model: "role-m", APIKeyEnv: "K1", Command: []string{"a", "b"}}},
+		{"command replaced whole", cfg, "place", "poem", vault.ProviderConfig{Name: "test-stub", BaseURL: "http://base", Model: "small", APIKeyEnv: "K0", Command: []string{"x"}}},
+		{"empty medium", cfg, "extract", "", vault.ProviderConfig{Name: "test-stub", BaseURL: "http://base", Model: "role-m", APIKeyEnv: "K1", Command: []string{"a", "b"}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := provider.Effective(tc.cfg, tc.role, tc.medium)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("got %+v want %+v", got, tc.want)
+			}
+		})
+	}
+	if _, err := provider.ForRole(cfg, "bogus", "poem"); err == nil {
+		t.Fatal("unknown role accepted")
 	}
 }
