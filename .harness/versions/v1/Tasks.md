@@ -23,7 +23,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | ID | Phase | Title | Depends-on | Model | Status | Notes |
 |----|-------|-------|------------|-------|--------|-------|
 | T000 | 0 | Preflight | — | supervisor | done | verify passes |
-| T001 | 1 | Build scaffold: go.mod, Makefile, LICENSE, gitignore, main stub | T000 | haiku | todo | |
+| T001 | 1 | Build scaffold: go.mod, Makefile, LICENSE, gitignore, main stub | T000 | haiku | done | go.mod, Makefile, LICENSE, .gitignore, cmd/slowhunch/main.go |
 | T002 | 1 | errs package and CLI core: dispatch, global flags, JSON envelope, exit codes | T001 | sonnet | todo | |
 | T003 | 1 | Vault config defaults and minimal init | T002 | sonnet | todo | |
 | T004 | 1 | skill command (guide at most 60 lines) | T002 | haiku | todo | |
