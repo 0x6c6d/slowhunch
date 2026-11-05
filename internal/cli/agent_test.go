@@ -109,6 +109,7 @@ func TestSchemaAllCommands(t *testing.T) {
 		"skill":          nil,
 		"source facts":   {src},
 		"stats":          nil,
+		"sync":           nil,
 		"update":         {t1id, "--rev", t1["rev"].(string), "--data", `{"tags":["x"]}`},
 		"verify":         nil,
 	}

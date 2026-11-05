@@ -29,10 +29,12 @@ type collidePair struct {
 }
 
 type collideDryResult struct {
-	DryRun bool           `json:"dry_run"`
-	Pairs  []collidePair  `json:"pairs"`
-	Counts map[string]int `json:"counts"`
-	Capped bool           `json:"capped"`
+	DryRun bool               `json:"dry_run"`
+	Pairs  []collidePair      `json:"pairs"`
+	Counts map[string]int     `json:"counts"`
+	Capped bool               `json:"capped"`
+	Errors []report.ItemError `json:"errors"`
+	Git    report.GitInfo     `json:"git"`
 }
 
 type collideResult struct {
@@ -80,10 +82,8 @@ func cmdCollide(env *Env, args []string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !dryRun {
-		if _, err := env.prepareRun(v, cfg); err != nil {
-			return nil, err
-		}
+	if _, err := env.prepare(v, cfg, dryRun); err != nil {
+		return nil, err
 	}
 	ix, _, err := v.LoadIndex()
 	if err != nil {
@@ -93,7 +93,8 @@ func cmdCollide(env *Env, args []string) (any, error) {
 	counts := map[string]int{"pairs_candidates": sel.Candidates, "pairs_tried": 0, "pairs_kept": 0}
 
 	if dryRun {
-		out := collideDryResult{DryRun: true, Pairs: []collidePair{}, Counts: counts, Capped: sel.Capped}
+		out := collideDryResult{DryRun: true, Pairs: []collidePair{}, Counts: counts, Capped: sel.Capped,
+			Errors: env.prep.itemErrors(), Git: report.GitInfo{Skipped: "dry-run", Behind: env.prep.behind()}}
 		for _, p := range sel.Pairs {
 			out.Pairs = append(out.Pairs, collidePair{Items: []string{report.Link(p.A), report.Link(p.B)},
 				Cosine: p.Cosine, Score: p.Score, Reserved: p.Reserved})
