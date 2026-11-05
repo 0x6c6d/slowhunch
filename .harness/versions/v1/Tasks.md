@@ -43,7 +43,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T018 | 3 | link, unlink, backlinks, graph commands | T011, T013, T014 | sonnet | done | cmd_link.go, cmd_graph.go + tests |
 | T019 | 3 | hunch add, evidence, state, due commands | T006, T011, T013, T014 | sonnet | done | cmd_hunch.go + tests |
 | T020 | 3 | source facts command | T007, T011, T013 | haiku | done | cmd_source.go + test |
-| T021 | 4 | TF-IDF index, cosine, neighbour selection | T001 | sonnet | todo | |
+| T021 | 4 | TF-IDF index, cosine, neighbour selection | T001 | sonnet | done | internal/search tfidf, neighbours + tests; build 2000 docs ~0.2s |
 | T022 | 4 | search command: ranking, filters, budget, partners | T021, T011, T013 | sonnet | todo | |
 | T023 | 4 | lint checks and command | T011, T013 | sonnet | todo | |
 | T024 | 4 | verify checks and command | T023, T014 | sonnet | todo | |
