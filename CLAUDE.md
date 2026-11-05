@@ -2,7 +2,31 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-<Fill in once code exists: build / test / lint commands, architecture notes. Until then: the spec is `.harness/harness.md`.>
+## Commands
+
+- `make build`: writes `./bin/slowhunch`.
+- `make test`: runs `go test ./...`.
+- `make lint`: gofmt must print nothing, then `go vet ./...`.
+- `make check`: lint + test + build; must exit 0 before any commit.
+- One package's tests: `go test ./internal/vault/ -run TestName`.
+
+## Architecture
+
+Go standard library only. `cmd/slowhunch/main.go` calls `cli.Run` and exits with its return code.
+
+- `internal/cli`: command dispatch, global flags, `--json` output envelopes.
+- `internal/errs`: shared error type with stable codes and exit codes.
+- `internal/frontmatter`: parser and writer for the strict YAML-like frontmatter subset.
+- `internal/vault`: vault config, layout, index, lint, verify and transactions.
+- `internal/gitops`: the git wrapper; every git call goes through it (argv, never a shell).
+- `internal/intake`: reads and checks input text (normalization, fencing, secret detection).
+- `internal/provider`: prompts and the `Provider` interface; subpackages `openai` (chat completions), `exec` (local program, JSON over stdio) and `fake` (tests).
+- `internal/pipeline`: per-item steps between intake and the vault (extract, gate, place, write).
+- `internal/search`: in-memory TF-IDF index with cosine similarity.
+- `internal/report`: per-run report JSON written to `.slowhunch/reports/`.
+- `internal/policy`: repository-wide policy tests.
+- Security-critical single sites: path confinement (`vault` `GuardPath`) and atomic writes (`vault` `WriteFile`); every git call (`gitops`); the only `net/http` (`provider/openai`); the only provider `os/exec` (`provider/exec`); fencing and secret detection (`intake`).
+- Tests use temp vaults and the fake/exec providers only. The spec lives in `.harness/harness.md`.
 
 ## Delegation workflow: supervise, don't implement
 

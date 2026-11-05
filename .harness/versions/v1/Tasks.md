@@ -66,7 +66,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T041 | 7 | Performance test on 2,000 atoms | T022, T024 | sonnet | done | cli/perf_test.go; verify 0.6s, search 0.33s; test runtime ~36s (fsync fixture) |
 | T042 | 7 | Policy tests: no push/pull/force, single network and exec sites, test guard | T008, T039 | haiku | done | internal/policy tests |
 | T043 | 7 | README with tested quick start | T004, T014, T015, T016, T017, T018, T019, T020, T022, T024, T026, T037, T038, T039, T040 | sonnet | done | README.md, cli/readme_test.go |
-| T044 | 7 | CLAUDE.md build commands and architecture notes | T039 | haiku | todo | |
+| T044 | 7 | CLAUDE.md build commands and architecture notes | T039 | haiku | done | CLAUDE.md commands + architecture; delegation section byte-identical |
 | T045 | 7 | Definition of Done | T000, T001, T002, T003, T004, T005, T006, T007, T008, T009, T010, T011, T012, T013, T014, T015, T016, T017, T018, T019, T020, T021, T022, T023, T024, T025, T026, T027, T028, T029, T030, T031, T032, T033, T034, T035, T036, T037, T038, T039, T040, T041, T042, T043, T044 | supervisor | todo | |
 
 Status values: `todo` · `done` · `blocked` · `superseded`. No pipe characters inside cells.
