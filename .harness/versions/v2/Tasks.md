@@ -54,7 +54,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T022 | 6 | skill guide v2 | T005 T011 T016 T017 T021 | haiku | done | skill guide v2 (47 lines) + TestSkillV2 |
 | T023 | 6 | README v2 update | T005 T007 T010 T011 T012 T013 T014 T016 T017 T019 T020 T021 T022 | sonnet | done | README v2 sections + TestReadmeV2Mentions |
 | T024 | 6 | CLAUDE.md architecture notes v2 | T004 T009 T010 T018 | haiku | done | CLAUDE.md architecture notes v2 |
-| T025 | 6 | Definition of Done | T001 T002 T003 T004 T005 T006 T007 T008 T009 T010 T011 T012 T013 T014 T015 T016 T017 T018 T019 T020 T021 T022 T023 T024 | supervisor | todo | |
+| T025 | 6 | Definition of Done | T001 T002 T003 T004 T005 T006 T007 T008 T009 T010 T011 T012 T013 T014 T015 T016 T017 T018 T019 T020 T021 T022 T023 T024 | supervisor | done | DoD lines 1-13 pass |
 
 Status values: `todo` · `done` · `blocked` · `superseded`. No pipe characters inside cells.
 
