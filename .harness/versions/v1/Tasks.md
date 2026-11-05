@@ -46,7 +46,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T021 | 4 | TF-IDF index, cosine, neighbour selection | T001 | sonnet | done | internal/search tfidf, neighbours + tests; build 2000 docs ~0.2s |
 | T022 | 4 | search command: ranking, filters, budget, partners | T021, T011, T013 | sonnet | done | search/rank.go, cmd_search.go + tests; hops 0 = bears_on, filter distance<=2 |
 | T023 | 4 | lint checks and command | T011, T013 | sonnet | done | vault/lint.go, cmd_lint.go + tests |
-| T024 | 4 | verify checks and command | T023, T014 | sonnet | todo | |
+| T024 | 4 | verify checks and command | T023, T014 | sonnet | done | vault/verify.go, cmd_verify.go + tests |
 | T025 | 4 | Run report type, key order, save and load | T008 | sonnet | todo | |
 | T026 | 4 | stats aggregation and command | T025, T011, T013 | sonnet | todo | |
 | T027 | 5 | Provider interface, registry, fake, JSON call with repair | T012, T003 | opus | todo | |
