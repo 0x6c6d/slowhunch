@@ -387,3 +387,13 @@ func (r *Repo) Behind() (int, error) {
 	}
 	return r.count("HEAD..@{u}")
 }
+
+// Ahead returns how many local commits the upstream lacks (as of the last
+// fetch); 0 when the branch has no upstream.
+func (r *Repo) Ahead() (int, error) {
+	ok, err := r.HasUpstream()
+	if err != nil || !ok {
+		return 0, err
+	}
+	return r.count("@{u}..HEAD")
+}

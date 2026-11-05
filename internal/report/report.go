@@ -82,6 +82,7 @@ type GitInfo struct {
 	Commit  string `json:"commit"`
 	Skipped string `json:"skipped,omitempty"`
 	Pulled  int    `json:"pulled"`
+	Pushed  bool   `json:"pushed"`
 }
 
 type Report struct {

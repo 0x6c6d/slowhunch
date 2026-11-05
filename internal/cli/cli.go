@@ -25,6 +25,8 @@ type Env struct {
 	Stdout, Stderr         io.Writer
 	JSON, DryRun, NoCommit bool
 	NoPull                 bool // --no-pull: vault-changing commands skip the pull
+	Push                   bool // --push: push after the commit even when git.push is false
+	NoPush                 bool // --no-push: never push
 	VaultFlag              string
 	Now                    func() time.Time
 
@@ -121,6 +123,10 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			env.NoCommit = true
 		case a == "--no-pull":
 			env.NoPull = true
+		case a == "--push":
+			env.Push = true
+		case a == "--no-push":
+			env.NoPush = true
 		case a == "--vault":
 			if i+1 >= len(args) {
 				return fail(env, errs.New(errs.BadInput, "--vault needs a directory", "usage: --vault <dir>"), true)
@@ -132,6 +138,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		default:
 			rest = append(rest, a)
 		}
+	}
+	if env.Push && env.NoPush {
+		return fail(env, errs.New(errs.BadInput, "--push and --no-push cannot be combined", "pass at most one of --push and --no-push"), true)
 	}
 	if len(rest) == 0 {
 		return fail(env, errs.New(errs.BadInput, "no command given", "run slowhunch help"), true)
@@ -160,7 +169,10 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if err != nil {
 		return fail(env, err, false)
 	}
-	res = env.prep.decorate(res)
+	res, err = env.finishRun(res)
+	if err != nil {
+		return fail(env, err, false)
+	}
 	if err := printResult(env, res); err != nil {
 		return fail(env, err, false)
 	}
@@ -174,7 +186,7 @@ func helpText() string {
 	}
 	sort.Strings(names)
 	var b strings.Builder
-	b.WriteString("usage: slowhunch [--json] [--dry-run] [--no-commit] [--no-pull] [--vault <dir>] <command> [args]\n\ncommands:\n")
+	b.WriteString("usage: slowhunch [--json] [--dry-run] [--no-commit] [--no-pull] [--push|--no-push] [--vault <dir>] <command> [args]\n\ncommands:\n")
 	for _, n := range names {
 		fmt.Fprintf(&b, "  %-20s %s\n", n, commands[n].summary)
 	}
@@ -264,7 +276,7 @@ func fail(env *Env, err error, usage bool) int {
 		fmt.Fprintf(env.Stderr, "hint: %s\n", e.Hint)
 	}
 	if usage {
-		fmt.Fprint(env.Stderr, "usage: slowhunch [--json] [--dry-run] [--no-commit] [--no-pull] [--vault <dir>] <command> [args]\n")
+		fmt.Fprint(env.Stderr, "usage: slowhunch [--json] [--dry-run] [--no-commit] [--no-pull] [--push|--no-push] [--vault <dir>] <command> [args]\n")
 	}
 	return code
 }

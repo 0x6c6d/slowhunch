@@ -1,8 +1,12 @@
 package cli
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/0x6c6d/slowhunch/internal/errs"
 	"github.com/0x6c6d/slowhunch/internal/gitops"
+	"github.com/0x6c6d/slowhunch/internal/pipeline"
 	"github.com/0x6c6d/slowhunch/internal/report"
 	"github.com/0x6c6d/slowhunch/internal/vault"
 )
@@ -14,10 +18,18 @@ type runWarning struct {
 	Hint    string `json:"hint"`
 }
 
-// runPrep is the outcome of prepareRun: commits pulled and warnings.
+// runPrep is the outcome of prepareRun: commits pulled and warnings, and
+// the push planned for after the command (see finishRun).
 type runPrep struct {
 	Pulled   int
 	Warnings []runWarning
+	Pushed   bool
+
+	push     bool         // a push was asked for and is allowed
+	vault    *vault.Vault // the vault of the run
+	cfg      vault.Config
+	head     string      // HEAD when the run started
+	pushWarn *runWarning // PUSH_FAILED of this run
 }
 
 // itemErrors returns the warnings in the errors form of a report.
@@ -60,6 +72,9 @@ func (e *Env) openRun() (*vault.Vault, vault.Config, error) {
 func (e *Env) prepareRun(v *vault.Vault, cfg vault.Config) (*runPrep, error) {
 	p := &runPrep{}
 	e.prep = p
+	// Plan the push after the resume commit and the pull, so HEAD then marks
+	// the start of this run's own changes.
+	defer e.planPush(p, v, cfg)
 	if e.DryRun || e.NoPull || e.NoCommit || !cfg.Git.Commit || !cfg.Git.Pull || !gitops.Available() {
 		return p, nil
 	}
@@ -105,8 +120,132 @@ func (e *Env) prepareRun(v *vault.Vault, cfg vault.Config) (*runPrep, error) {
 	return p, nil
 }
 
-// decorate adds pulled to the git object of a map result and the warnings
-// as a top-level array.
+// planPush decides, before anything is written, whether the run pushes:
+// (git.push or --push) and not --no-push, not --dry-run, commits enabled,
+// git available and the vault a repository. It records HEAD so finishRun
+// can tell whether the run made a commit.
+func (e *Env) planPush(p *runPrep, v *vault.Vault, cfg vault.Config) {
+	if !(cfg.Git.Push || e.Push) || e.NoPush || e.DryRun || e.NoCommit || !cfg.Git.Commit || !gitops.Available() {
+		return
+	}
+	if !gitops.IsRepo(v.Root) {
+		return
+	}
+	head, err := gitops.New(v.Root).Head()
+	if err != nil {
+		head = ""
+	}
+	p.push, p.vault, p.cfg, p.head = true, v, cfg, head
+}
+
+// runPush pushes git.branch (or the current branch) to git.remote when the
+// run made a commit, or when the branch is ahead of its upstream (commits of
+// an earlier run whose push failed). Without the remote it does nothing. A
+// failed push becomes the PUSH_FAILED warning; the commit is kept, the push
+// is never retried within the run and never forced.
+func (p *runPrep) runPush() {
+	if p == nil || !p.push {
+		return
+	}
+	repo := gitops.New(p.vault.Root)
+	if ok, err := repo.HasRemote(p.cfg.Git.Remote); err != nil || !ok {
+		return
+	}
+	head, err := repo.Head()
+	if err != nil {
+		return
+	}
+	if head == p.head {
+		n, err := repo.Ahead()
+		if err != nil || n == 0 {
+			return
+		}
+	}
+	branch := p.cfg.Git.Branch
+	if branch == "" {
+		if branch, err = repo.CurrentBranch(); err != nil {
+			p.warnPush(errs.New(errs.PushFailed, "cannot tell the current branch", "set git.branch or check out a branch"))
+			return
+		}
+	}
+	if err := repo.Push(p.cfg.Git.Remote, branch); err != nil {
+		p.warnPush(err)
+		return
+	}
+	p.Pushed = true
+}
+
+func (p *runPrep) warnPush(err error) {
+	w := runWarning{Code: errs.PushFailed, Message: err.Error(),
+		Hint: "the commit is kept; the next run that pushes sends it"}
+	if ee, ok := err.(*errs.Error); ok {
+		w.Message = ee.Message
+		if ee.Hint != "" {
+			w.Hint = ee.Hint
+		}
+	}
+	p.pushWarn = &w
+	p.Warnings = append(p.Warnings, w)
+}
+
+// finishRun runs after a vault-changing command succeeded: it pushes (see
+// runPush) and records the outcome in the result. Reports of add and collide
+// get git.pushed and a PUSH_FAILED entry in errors, and are saved again when
+// the command saved them; map results get git.pulled, git.pushed and the
+// warnings array.
+func (e *Env) finishRun(res any) (any, error) {
+	p := e.prep
+	if p == nil {
+		return res, nil
+	}
+	p.runPush()
+	var pushErr []report.ItemError
+	if p.pushWarn != nil {
+		pushErr = []report.ItemError{{Item: "git", Code: p.pushWarn.Code, Reason: p.pushWarn.Message}}
+	}
+	switch r := res.(type) {
+	case *report.Report:
+		return r, p.patchReport(r, pushErr, r.RunID+".json")
+	case collideResult:
+		return r, p.patchReport(r.Report, pushErr, r.RunID+".json")
+	case *pipeline.BatchResult:
+		r.Git.Pushed = p.Pushed
+		r.Errors = append(r.Errors, pushErr...)
+		for i, it := range r.Items {
+			if err := p.patchReport(it, nil, fmt.Sprintf("%s-%d.json", it.RunID, i+1)); err != nil {
+				return nil, err
+			}
+		}
+		return r, nil
+	}
+	return p.decorate(res), nil
+}
+
+// patchReport sets git.pushed and appends extra to rep, then rewrites the
+// saved report .slowhunch/reports/<name> if the command saved one. The
+// reports folder is git-ignored, so the rewrite needs no commit.
+func (p *runPrep) patchReport(rep *report.Report, extra []report.ItemError, name string) error {
+	if rep == nil {
+		return nil
+	}
+	rep.Git.Pushed = p.Pushed
+	rep.Errors = append(rep.Errors, extra...)
+	if p.vault == nil || (!p.Pushed && len(extra) == 0) {
+		return nil
+	}
+	rel := ".slowhunch/reports/" + name
+	if !p.vault.Exists(rel) {
+		return nil
+	}
+	b, err := json.MarshalIndent(rep, "", "  ")
+	if err != nil {
+		return err
+	}
+	return p.vault.WriteFile(rel, append(b, '\n'))
+}
+
+// decorate adds pulled and pushed to the git object of a map result and the
+// warnings as a top-level array.
 func (p *runPrep) decorate(res any) any {
 	m, ok := res.(map[string]any)
 	if p == nil || !ok {
@@ -114,6 +253,7 @@ func (p *runPrep) decorate(res any) any {
 	}
 	if g, ok := m["git"].(map[string]any); ok {
 		g["pulled"] = p.Pulled
+		g["pushed"] = p.Pushed
 	}
 	if len(p.Warnings) > 0 {
 		m["warnings"] = p.Warnings

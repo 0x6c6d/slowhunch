@@ -415,3 +415,25 @@ func TestPullFailedUnreachable(t *testing.T) {
 		t.Fatal("HEAD moved")
 	}
 }
+
+func TestAheadCount(t *testing.T) {
+	_, a, _ := remoteSetup(t)
+	ra := New(a)
+	if n, err := ra.Ahead(); err != nil || n != 0 {
+		t.Fatalf("Ahead before commit = %d, %v", n, err)
+	}
+	commitFile(t, a, "a.md", "a\n", "a")
+	commitFile(t, a, "b.md", "b\n", "b")
+	if n, err := ra.Ahead(); err != nil || n != 2 {
+		t.Fatalf("Ahead = %d, %v, want 2", n, err)
+	}
+	git(t, a, "push", "-q", "origin", "main")
+	if n, err := ra.Ahead(); err != nil || n != 0 {
+		t.Fatalf("Ahead after push = %d, %v", n, err)
+	}
+	git(t, a, "checkout", "-q", "-b", "solo")
+	commitFile(t, a, "c.md", "c\n", "c")
+	if n, err := ra.Ahead(); err != nil || n != 0 {
+		t.Fatalf("Ahead without upstream = %d, %v", n, err)
+	}
+}
