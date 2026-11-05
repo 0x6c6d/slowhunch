@@ -58,7 +58,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T033 | 6 | Pipeline item types and gate step | T027, T030, T031, T032, T007 | sonnet | done | pipeline/types.go, gate.go + tests |
 | T034 | 6 | Extract step with code-enforced atom rules and caps | T033 | sonnet | done | pipeline/extract.go + tests |
 | T035 | 6 | Place step: neighbours, model verdict, code decision | T033, T021 | opus | done | pipeline/place.go + tests |
-| T036 | 6 | add orchestration core: intake to commit, idempotent, dry-run | T034, T035, T025, T010, T011, T006 | opus | todo | |
+| T036 | 6 | add orchestration core: intake to commit, idempotent, dry-run | T034, T035, T025, T010, T011, T006 | opus | done | pipeline/add.go, write.go + tests; no-atoms writes nothing; dup/contradicts treated as extends until T037 |
 | T037 | 6 | add outcomes: corroboration, contradiction, echo, hunch evidence | T036 | opus | todo | |
 | T038 | 6 | add crash resume, dirty-file conflict, exact commit | T036 | opus | todo | |
 | T039 | 6 | add CLI command and fake-model exec helper for CLI tests | T036, T028, T029, T013 | sonnet | todo | |
