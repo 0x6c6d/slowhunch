@@ -71,6 +71,9 @@ func (v *Vault) Begin(command string, o TxnOptions) (*Txn, error) {
 	return t, nil
 }
 
+// AddRuns counts a run per medium on day in the state saved by Commit.
+func (t *Txn) AddRuns(day string, mediums []string) { t.state.AddRuns(day, mediums) }
+
 // RunID returns the run id of this transaction.
 func (t *Txn) RunID() string { return t.runID }
 

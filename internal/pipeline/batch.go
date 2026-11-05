@@ -172,7 +172,15 @@ func AddBatch(ctx context.Context, d Deps, from string, o Options) (*BatchResult
 			continue
 		}
 		st.runs[i] = r
-		if r.done {
+	}
+
+	// Caps: before any provider call, once every entry's medium is known.
+	if err := checkCaps(d, st.runs); err != nil {
+		return nil, err
+	}
+	for i, r := range st.runs {
+		e := entries[i]
+		if r == nil || r.done {
 			continue
 		}
 		gateItem(ctx, d, r)
@@ -246,6 +254,10 @@ func AddBatch(ctx context.Context, d Deps, from string, o Options) (*BatchResult
 			planned[id] = true
 		}
 		nNew += len(ap.newIDs)
+	}
+
+	if err := countRuns(d, txn, o.DryRun, st.runs); err != nil {
+		return nil, err
 	}
 
 	// One commit for the whole batch.

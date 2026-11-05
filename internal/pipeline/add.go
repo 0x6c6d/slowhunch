@@ -120,6 +120,8 @@ type itemRun struct {
 	done bool
 	// rejected means the gate answered keep=false (not a gate error).
 	rejected bool
+	// called means a provider was called for this item.
+	called bool
 	// wildcard means a rejected item kept by the wildcard lane; its atoms get the tag wildcard.
 	wildcard bool
 }
@@ -233,6 +235,7 @@ func markExisting(rep *report.Report, id string) {
 // gateItem is the gate step; a rejected item is marked done.
 func gateItem(ctx context.Context, d Deps, r *itemRun) {
 	rep := r.rep
+	r.called = true
 	keep, reason, gu, gerr := Gate(ctx, r.gateP, d.Prompts["gate"], r.it)
 	if gu != (provider.Usage{}) {
 		rep.AddCost("gate", toUsage(gu))
@@ -456,21 +459,25 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 	if r.done {
 		return r.rep, nil
 	}
+	if err := checkCaps(d, []*itemRun{r}); err != nil {
+		return nil, err
+	}
+	runs := []*itemRun{r}
 	// 4. Gate, then the wildcard lane for a rejected item.
 	gateItem(ctx, d, r)
 	if r.rejected {
-		kept := chooseWildcards(d.Config.Place.WildcardShare, []*itemRun{r})
+		kept := chooseWildcards(d.Config.Place.WildcardShare, runs)
 		recordWildcard(r, r.it.SourceID, kept[0])
 	}
 	if r.done {
-		return r.rep, nil
+		return r.rep, countRuns(d, nil, o.DryRun, runs)
 	}
 	ap, err := extractPlace(ctx, d, r, ix, map[string]bool{})
 	if err != nil {
 		return nil, err
 	}
 	if ap == nil {
-		return r.rep, nil
+		return r.rep, countRuns(d, nil, o.DryRun, runs)
 	}
 	rep := r.rep
 
@@ -485,6 +492,9 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 	}
 
 	// 9. Commit and save.
+	if err := countRuns(d, txn, o.DryRun, runs); err != nil {
+		return nil, err
+	}
 	hash, err := txn.Commit(ids, fmt.Sprintf("atoms: %d", len(ap.newIDs)))
 	if err != nil {
 		return nil, err
@@ -499,4 +509,75 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 		return nil, err
 	}
 	return rep, nil
+}
+
+// checkCaps fails with CAP_REACHED, before any provider call, when a medium of
+// the run has used up caps.by_medium.<medium>.runs_per_day today.
+func checkCaps(d Deps, runs []*itemRun) error {
+	seen := map[string]bool{}
+	var mediums []string
+	for _, r := range runs {
+		if r == nil || r.done || seen[r.it.Medium] {
+			continue
+		}
+		seen[r.it.Medium] = true
+		mediums = append(mediums, r.it.Medium)
+	}
+	sort.Strings(mediums)
+	var st vault.State
+	loaded := false
+	today := d.clock()().Format("2006-01-02")
+	for _, m := range mediums {
+		limit := d.Config.Caps.ByMedium[m].RunsPerDay
+		if limit <= 0 {
+			continue
+		}
+		if !loaded {
+			var err error
+			if st, err = d.Vault.LoadState(); err != nil {
+				return err
+			}
+			loaded = true
+		}
+		if st.RunsByDay[today][m] >= limit {
+			return errs.New(errs.CapReached, fmt.Sprintf("medium %s reached its limit of %d runs per day", m, limit),
+				"raise caps.by_medium."+m+".runs_per_day or wait until tomorrow")
+		}
+	}
+	return nil
+}
+
+// calledMediums are the distinct capped mediums of runs that called a provider
+// (mediums without a limit are not counted, so uncapped vaults keep state.json untouched).
+func calledMediums(d Deps, runs []*itemRun) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, r := range runs {
+		if r != nil && r.called && d.Config.Caps.ByMedium[r.it.Medium].RunsPerDay > 0 && !seen[r.it.Medium] {
+			seen[r.it.Medium] = true
+			out = append(out, r.it.Medium)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// countRuns records the run in the state: through txn when there is one,
+// else directly. A dry run or a run without provider calls counts nothing.
+func countRuns(d Deps, txn *vault.Txn, dryRun bool, runs []*itemRun) error {
+	mediums := calledMediums(d, runs)
+	if dryRun || len(mediums) == 0 {
+		return nil
+	}
+	today := d.clock()().Format("2006-01-02")
+	if txn != nil {
+		txn.AddRuns(today, mediums)
+		return nil
+	}
+	st, err := d.Vault.LoadState()
+	if err != nil {
+		return err
+	}
+	st.AddRuns(today, mediums)
+	return d.Vault.SaveState(st)
 }

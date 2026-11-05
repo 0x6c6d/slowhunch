@@ -309,6 +309,19 @@ type State struct {
 	RunsByDay map[string]map[string]int `json:"runs_by_day,omitempty"`
 }
 
+// AddRuns counts one run for each of mediums on day (YYYY-MM-DD) and prunes
+// every other date.
+func (s *State) AddRuns(day string, mediums []string) {
+	kept := s.RunsByDay[day]
+	if kept == nil {
+		kept = map[string]int{}
+	}
+	for _, m := range mediums {
+		kept[m]++
+	}
+	s.RunsByDay = map[string]map[string]int{day: kept}
+}
+
 // LoadState reads .slowhunch/state.json; a missing file yields a zero State.
 func (v *Vault) LoadState() (State, error) {
 	var s State
