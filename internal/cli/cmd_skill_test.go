@@ -7,6 +7,27 @@ import (
 	"testing"
 )
 
+func TestSkillV2(t *testing.T) {
+	var out, errb bytes.Buffer
+	if rc := Run([]string{"skill"}, strings.NewReader(""), &out, &errb); rc != 0 {
+		t.Fatalf("rc=%d %s", rc, errb.String())
+	}
+	text := out.String()
+	if n := strings.Count(text, "\n"); n > 60 {
+		t.Fatalf("guide has %d lines", n)
+	}
+	for _, line := range strings.Split(text, "\n") {
+		if len(line) > 100 {
+			t.Fatalf("line too long: %q", line)
+		}
+	}
+	for _, k := range []string{"slowhunch collide", "slowhunch review", "slowhunch keep", "--from", "slowhunch sync"} {
+		if !strings.Contains(text, k) {
+			t.Fatalf("guide lacks %q", k)
+		}
+	}
+}
+
 func TestSkill(t *testing.T) {
 	var out, errb bytes.Buffer
 	if rc := Run([]string{"skill"}, strings.NewReader(""), &out, &errb); rc != 0 {

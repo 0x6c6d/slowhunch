@@ -51,7 +51,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T019 | 5 | Pull before write in the run wrapper | T001 T002 T018 | opus | done | cli/sync.go prepareRun, --no-pull, git.pulled; no extra pre-pull dirty check (autostash covers it) |
 | T020 | 5 | Push after commit | T019 | opus | done | --push/--no-push, runPush in sync.go, gitops Ahead; push skipped under no-commit |
 | T021 | 5 | sync command, --sync and dry-run BEHIND | T020 | opus | done | cmd_sync.go, --sync, dry-run behind/BEHIND warning |
-| T022 | 6 | skill guide v2 | T005 T011 T016 T017 T021 | haiku | todo | |
+| T022 | 6 | skill guide v2 | T005 T011 T016 T017 T021 | haiku | done | skill guide v2 (47 lines) + TestSkillV2 |
 | T023 | 6 | README v2 update | T005 T007 T010 T011 T012 T013 T014 T016 T017 T019 T020 T021 T022 | sonnet | todo | |
 | T024 | 6 | CLAUDE.md architecture notes v2 | T004 T009 T010 T018 | haiku | todo | |
 | T025 | 6 | Definition of Done | T001 T002 T003 T004 T005 T006 T007 T008 T009 T010 T011 T012 T013 T014 T015 T016 T017 T018 T019 T020 T021 T022 T023 T024 | supervisor | todo | |

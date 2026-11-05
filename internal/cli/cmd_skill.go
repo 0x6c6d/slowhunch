@@ -24,7 +24,7 @@ const skillText = `slowhunch: a commonplace book for agents.
 What it is
   A plain Markdown vault kept in git. Every command accepts --json.
   slowhunch never fetches from the network: you read links yourself
-  and pass the text in.
+  and pass the text in. .pdf input needs pdf.command (pdftotext).
 
 Data model
   notes/      atoms, type "note": a one-line claim, a verbatim evidence
@@ -54,6 +54,11 @@ Example calls (one command per line)
   slowhunch update <id> --rev <rev> --data '{"tags":["x"]}'
   slowhunch hunch add "question"
   slowhunch hunch due
+  slowhunch add --from batch.txt   one per line: file or file|url|title|author
+  slowhunch keep "text" --ids a,b [--topic ID]
+  slowhunch collide --dry-run      then slowhunch collide: proposals from distant pairs
+  slowhunch review                 stale hunches, orphans, unplaced atoms (read-only)
+  slowhunch sync [--no-pull] [--push|--no-push]
 
 Session shape
   1. slowhunch skill (once)
