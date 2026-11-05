@@ -7,8 +7,8 @@
 ## One-line goal
 
 **slowhunch** is a Go program plus a vault format that turns a personal knowledge base into a
-**commonplace book optimized for AI agents**. You give it material — links, text, files, search
-queries, and the written forms of what you find beautiful: poems, songs, novels, sacred and
+**commonplace book optimized for AI agents**. You give it material — text, files and
+anything an agent reads for you (pages, search results), and the written forms of what you find beautiful: poems, songs, novels, sacred and
 philosophical texts, next to articles, papers and blog posts — agents read and analyze it, store it as
 small linked claims and excerpts, attach those to long-running **hunches** (open questions that collect
 evidence over months), and surface contradictions and new combinations. Agents can create, read, update
@@ -78,29 +78,30 @@ owner keeps an answer. Everything else stays retrieval.
 
 ## Inputs: what the owner can give it
 
-The owner hands slowhunch **anything they want analyzed**; it is not tied to one paper database and
-makes no difference between "knowledge" and "taste".
+The owner hands slowhunch **anything they want analyzed**, as **text**. slowhunch itself never touches
+the network for content: it has no fetchers. When the owner sends a link or asks for a web search, the
+**agent** reads the page or runs the search with its own tools and passes the resulting text, with the
+URL as citation, to `add`. It makes no difference between "knowledge" and "taste".
 
-1. **URLs** of articles, blogs, papers and any public web page. If a page cannot be fetched (login
-   wall, bot block, video or social post), the fetch fails with a code and the owner pastes the text
-   instead (item 2). There are no platform-specific fetchers.
-2. **Pasted text** or a **text/Markdown/PDF file** (PDF text extraction is optional, see Out of scope).
-   This is the normal path for verse, lyrics, quotations and other written beauty, which rarely have a
-   stable public URL.
-3. **Search queries**: the agent runs a web search and analyzes the best results.
-4. **Paper sources** such as OpenAlex for the scheduled nightly feed.
-5. **Batch files**: a list of links and notes, e.g. `slowhunch add --from links.txt`.
+1. **Text** on stdin or as an argument (`add -`): an article body, verse, lyrics, a quotation, a
+   transcript, an owner's description of a painting or scene. This is the normal path for everything,
+   and the only one for written beauty, which rarely has a stable public URL.
+2. **A text/Markdown/PDF file** (PDF text extraction is optional, see Out of scope).
+3. **Batch files**: a list of files and notes, e.g. `slowhunch add --from batch.txt`, one entry per line
+   (`<file>` or `<file>|<url>|<title>|<author>`).
 
-One command covers it: `slowhunch add <url|text|file|-> [--as <medium>] [--title "..."]
-[--author "..."] [--note "why I care"] [--hunch <id>]`, plus `slowhunch search "<query>"` and
-`slowhunch ingest` for scheduled feeds. `--as` takes any `medium` value, sets it, and picks the gate and
-extract variant; without it the fetcher infers one from host, MIME type and length. `--title` and
-`--author` are how pasted verse gets a citation and a stable slug; `--as poem|lyric|film` without a URL
+The `--url` flag records where the agent got the text; it is a citation only and is never requested.
+
+One command covers it: `slowhunch add <text|file|-> [--as <medium>] [--url "..."] [--title "..."]
+[--author "..."] [--note "why I care"] [--hunch <id>]`. `--as` takes any `medium` value, sets it, and
+picks the gate and extract variant; without it the medium is inferred from file extension and length,
+and an agent should say which one it means. `--title` and
+`--author` are how pasted verse gets a citation and a stable slug; `--as poem|lyric|film`
 requires `--title`, `--as quote` requires `--author`, and unknown authorship is written `anonymous`, never guessed. `--note` and `--hunch`
 carry the owner's intent into the analysis and are the strongest signal a gate and an extract prompt
 get, so an agent always asks for one or derives it from the owner's message before calling.
 
-**What enters from material without a URL.** A poem, a lyric, a painting or a quote from a book is
+**What enters from material that has no text.** A poem, a lyric, a painting or a quote from a book is
 added as text with `--as`. The owner sends it once; the agent quotes it back exactly, and the `inbox/`
 copy is the ground truth for the substring check. Images and audio are **never stored as files** —
 the owner's description of what is in the picture is pasted as text and becomes the evidence; the
@@ -117,19 +118,13 @@ of writing a second one, and only the atom layer decides whether that is a `rere
 or nothing. Slugs for aesthetic sources are `poem-<author>-<title>-<short>` (and the same for lyric,
 prose, quote, film, art; `own-<title>-<short>` for `own`), because translations and versions of one work would otherwise collide on `id`.
 
-### Fetching **(default)**
+### Intake normalization **(default)**
 
-- A **fetcher** interface (`Fetch(ctx, target) (Document, error)`), a registry, and routing by input
-  shape: URL, file path or text. Each fetcher can list a primary plus fallback backends in config.
-- Built-in fetchers in pure Go (stdlib): **`web`** (direct HTTP GET with size cap, charset handling,
-  readable-text extraction, optional Jina Reader backend), **`text`**, **`file`**. `text` is a
-  first-class fetcher, not a fallback: it is how poetry, lyrics, quotations and anything a page would
-  not give up enter.
-- **No platform fetchers.** YouTube, Reddit, Instagram, Twitter/X and similar sites are not supported
-  directly. When `web` cannot read a page (login wall, bot challenge, video, JavaScript-only content),
-  it fails with `BLOCKED` or `UNSUPPORTED` and the hint "paste the text with `add -` (and `--as`,
-  `--title`, `--author`)". The owner copies the text, transcript or post and pastes it; from there it is
-  the same path as any other text.
+- **No fetchers, no network for content.** slowhunch takes text, a file or stdin and nothing else.
+  There is no fetcher interface, registry, web backend, platform support or plugin. URLs, searches,
+  transcripts and social posts are the agent's job: it reads them with its own tools and pipes the text
+  in with `--url` as citation. Anything the agent could not read, the owner pastes.
+- A **`text`** reader (stdlib) turns stdin, an argument or a file into a normalized `Document`.
 - A **`verse`** pre-step (stdlib, code, no model) runs for `--as poem|lyric|prose|quote|film`: it normalizes
   whitespace, keeps line breaks, and numbers every line, so a `locator` is a stable address and the
   substring check is unambiguous even after the agent's prompt round-trip. Curly quotes, em dashes and
@@ -137,17 +132,12 @@ prose, quote, film, art; `own-<title>-<short>` for `own`), because translations 
   and what evidence is compared against.
 - For `--as code` the same step only numbers the lines and leaves whitespace untouched, because
   indentation is part of the code.
-- Anyone can add a fetcher without Go code: an executable that prints one JSON `Document` for a URL.
-- **Read-only, no-login:** fetchers never write to a remote site, and slowhunch never stores passwords
-  or logs in for the user.
-- Only the **links the owner supplies** (or search results the owner asked for) are fetched; slowhunch
-  does not crawl, follow outlinks, or bulk-scrape feeds.
-- Normalized `Document`: `url`, `medium`, `title`, `author`, `published`, `text`, `locator` base (line
-  numbers when the fetcher can supply them), `media` (links only), `retrieved_at`, `fetcher`,
-  `warnings`. Errors use the codes `NOT_FOUND`, `RATE_LIMITED`, `BLOCKED`, `UPSTREAM_BROKEN`,
-  `BAD_INPUT` and `UNSUPPORTED`.
+- Normalized `Document`: `url` (citation, optional), `medium`, `title`, `author`, `published`, `text`,
+  `locator` base (line numbers), `media` (links only), `retrieved_at`, `warnings`. Errors use the codes
+  `BAD_INPUT`, `UNSUPPORTED` and `TOO_LONG`.
 - Store **text and short quotes only**, never raw video, images or full copies of pages in the vault;
   keep the original URL as the citation.
+- slowhunch never logs in, stores passwords, cookies or sessions, or writes to a remote site.
 
 ## How analysis works
 
@@ -156,7 +146,7 @@ A poem and a paper are read, checked, placed and reported by the same code path,
 `collide` can pair one with the other. The rules below are code rules wherever they can be: an agent
 that forgets them gets an error, not a bad file.
 
-1. **Read:** route the input to a fetcher and get a `Document`; `--as` overrides the inferred `medium`.
+1. **Read:** normalize the input text into a `Document`; `--as` overrides the inferred `medium`.
 2. **Gate (agent):** cheap, fails closed on error. Exactly one question is asked, chosen by `medium`:
    - **factual** (`paper`, `article`, `blog`, `page`, `post`, `thread`, `code`, `talk`, `book`): is there a
      concrete claim, method, number, case or technique, or an argument worth following? In a `thread`
@@ -211,7 +201,7 @@ that forgets them gets an error, not a bad file.
    it), wildcards, collisions, counts and errors, token cost. Echoes are the aesthetic counterpart of
    corroboration and exist so a poem-only day does not report as empty.
 
-Scheduled: `slowhunch ingest` (nightly feeds from sources like OpenAlex or RSS), `slowhunch collide`
+Scheduled: `slowhunch collide`
 (weekly: combine distant items into a proposal, aesthetic atoms weighted up; a fixed share of every run
 is spent on `asserts` × `reads` across media, the lane where a poem can move a paper), `slowhunch
 review` (monthly: stale hunches, orphans, unplaced aesthetic atoms).
@@ -246,7 +236,7 @@ hunches/     open questions with evidence logs
 sources/     provenance for each analyzed input
 topics/      synthesis pages (append-only for agents)
 proposals/   collisions waiting for promotion
-inbox/       raw fetched text, immutable once written
+inbox/       raw intake text, immutable once written
 archive/     soft-deleted items
 .slowhunch/  config.json, state.json, prompts/, reports/, audit.log, cache/
 AGENTS.md    bootstrap for any agent started in the vault (written by `init`)
@@ -270,7 +260,7 @@ Type-specific: note (`claim`, `evidence`, `stance`, `locator` when aesthetic, `s
 `unlocks`, `repurpose`, `confidence` only for `asserts`, `rereads` for a repeat of an existing reading,
 `rendering` for a gloss, `translates` for the same line in another language), hunch (`question`,
 `state`, `next_test`, `evidence` list of `{date, note, relation}`, `revisit`), source (`url`, `medium`,
-`title`, `author`, `published`, `fetcher`, `atoms` taken, `translates` when one work exists
+`title`, `author`, `published`, `atoms` taken, `translates` when one work exists
 in two languages, `owner_note`), proposal (`items`, `idea`, `cheapest_test`, `status`). Links are
 `[[id]]`, one direction only, backlinks computed. Statements an agent inferred rather than read are
 marked *(inferred)*.
@@ -344,7 +334,7 @@ The book is only worth something if a future agent, with no memory of today, can
   of what an agent changed. `slowhunch verify` re-derives the index from files, checks every `evidence`
   substring, every `locator` range and every link, and is safe before and after any batch.
 - **Every change is committed, and pushed when there is a remote.** Any command that changes the vault
-  (`add`, `ingest`, `collide`, `review`, `create`, `update`, `delete`, `link`, `unlink`, `hunch ...`,
+  (`add`, `collide`, `review`, `create`, `update`, `delete`, `link`, `unlink`, `hunch ...`,
   `init`) ends with one git commit per run, never one per file. The rules:
   - The commit contains exactly the files that run wrote or moved, never `git add -A`, so a manual edit
     the owner has not committed is not swept in. If a run would touch a file that has uncommitted
@@ -373,7 +363,7 @@ The book is only worth something if a future agent, with no memory of today, can
     commit.
   - After the pull the in-memory index is rebuilt from the files, so placement, duplicate checks and
     `rev` checks see the other machine's atoms, hunches and sources. Because every run commits and pushes
-    immediately, copies rarely diverge, and a nightly `ingest` running on two machines is safe: the
+    immediately, copies rarely diverge, and a batch `add` running on two machines is safe: the
     second run finds the same source hash and writes nothing.
   - Conflicts are rare by design: one claim per file, ids derived from source and locator. When one
     happens anyway (the same file changed on both sides), the rebase is aborted, the vault is left
@@ -399,7 +389,7 @@ The book is only worth something if a future agent, with no memory of today, can
 - **Links and graph:** `link`, `unlink`, `backlinks`, `graph <id> --depth N`.
 - **Hunches:** `hunch add`, `hunch evidence`, `hunch state`, `hunch due`.
 - **Reading an aesthetic item:** `source facts <id>` returns the stored excerpt with stable line
-  numbers, so an agent can re-derive a `locator` without fetching again and can re-read the same text
+  numbers, so an agent can re-derive a `locator` without re-reading the original and can re-read the same text
   months later without the page having moved.
 - **Search is the point, so it is one call and ranked.** `search` is TF-IDF (stdlib) plus filters, but
   it takes `--medium`, `--stance`, `--tag`, `--hunch` and a `--budget` in tokens, and returns atoms
@@ -430,7 +420,7 @@ The book is only worth something if a future agent, with no memory of today, can
 The agent is the only interface; there is no UI to maintain. The owner adds things and asks the book
 questions. The agent's work sits between those two verbs:
 
-- **Add:** the owner sends a link or pastes text and says why. The agent fetches, gates, extracts,
+- **Add:** the owner sends a link or pastes text and says why. The agent reads the link itself, hands slowhunch the text, which gates, extracts,
   places, writes thin files and reports. If the owner sends a poem or a picture with no explanation, the
   agent asks one short question about intent (usually "which hunch?") before extracting, because the
   answer is the difference between an atom and a sticker. It never asks more than one question per item.
@@ -465,11 +455,11 @@ Every `[[id]]` in a report exists by the time the report prints. Nothing in it i
 
 ## Security and privacy
 
-- Fetched text is **untrusted**: fenced in prompts, delimiter look-alikes neutralized, never followed
+- Intake text is **untrusted**: fenced in prompts, delimiter look-alikes neutralized, never followed
   as instructions, never executed, slugs sanitized.
-- Outgoing HTTP only to hosts listed in config (providers, fetchers), also checked on redirects, with
-  per-host spacing, timeouts, response size caps and backoff on 429/5xx. Custom `exec` fetchers and
-  providers run with a timeout and a scrubbed environment.
+- Outgoing HTTP only to the inference provider hosts listed in config, with timeouts, response size caps
+  and backoff on 429/5xx. slowhunch makes no other network requests. `exec` providers run with a
+  timeout and a scrubbed environment.
 - Secrets only from env or a `0600` env file; never logged or written to the vault, reports or state;
   redacted in errors. A note containing a secret-like pattern is never sent to a provider.
 - `send_policy` in config says which vault folders and how many characters may go to a provider; the
@@ -479,8 +469,8 @@ Every `[[id]]` in a report exists by the time the report prints. Nothing in it i
   excerpt in `inbox/` may go to a provider, the whole poem is never mirrored to disk, and a work longer
   than the configured cap stays a citation plus its quoted lines. A `send_policy` level `local_only`
   keeps a marked folder on a local provider.
-- Fetching is read-only, owner-supplied links only, rate limited. Slowhunch stores text and short
-  quotes, not full copies of pages or media, and never stores or uses cookies, sessions or credentials.
+- slowhunch stores text and short quotes, not full copies of pages or media, and never stores or uses
+  cookies, sessions or credentials.
 - Tests and smoke runs use temporary vaults only; a guard refuses paths listed in
   `SLOWHUNCH_PROTECTED` when `SLOWHUNCH_TEST=1`.
 
@@ -500,8 +490,8 @@ write, report), and links to:
 
 - `docs/setup.md`: requirements, install, `slowhunch init`, add a private git remote, configure a provider, first `add` and
   first dry run, scheduling (systemd and cron), uninstall, troubleshooting.
-- `docs/inputs.md`: each input type with examples (web page, pasted text, file, search, and pasted
-  poem, lyric, quotation or art description), what to do when a URL cannot be fetched (paste the text),
+- `docs/inputs.md`: each input type with examples (pasted text, file, batch file, and pasted
+  poem, lyric, quotation or art description), how an agent hands over a page it read (`--url` as citation),
   known limits and failure codes, and the text-only, excerpt-first rules for images and songs.
 - `docs/concepts.md`: atoms and their three stances, hunches, proposals, the seven patterns, why there
   is no prose layer, and worked examples for a poem, a painting and a paper side by side.
@@ -509,7 +499,6 @@ write, report), and links to:
   `rereads`, `rendering`, `translates`, `owner_note`, and one complete valid file of every type.
 - `docs/providers.md`: the interface, the three built-ins, three ways to add your own (config only for
   OpenAI-compatible, an `exec` script, a Go package), with copy-paste examples.
-- `docs/fetchers.md`: the fetcher contract and how to add one with a shell script or Python.
 - `docs/agent-guide.md`: CLI `--json` usage, example agent
   sessions, rules for safe writes, the `verify`/`--dry-run` habit, and the standing rules for aesthetic
   material (quote exactly, emit a locator, keep the original language in `evidence`, gloss in
@@ -528,16 +517,15 @@ Every command shown in the docs is exercised by a test so the docs cannot go sta
 
 ## Success criteria
 
-- A user can run `slowhunch add <article-url>`, `add "pasted text"`, `add <file>` and
-  `search "<query>"` and get atoms with verbatim evidence; a URL that cannot be fetched fails cleanly
-  with a code and the hint to paste the text with `add -`.
+- A user can run `slowhunch add "pasted text"`, `add -` (stdin), `add <file>` and
+  `search "<query>"` and get atoms with verbatim evidence; an input with no text fails cleanly with a
+  code (`BAD_INPUT` or `UNSUPPORTED`) and a hint.
 - A pasted poem or song lyric added with `--as poem|lyric` yields at least one `crafts` or `reads`
   atom with an exact excerpt and a valid locator; a second `add` of the same poem yields a linked
   `rereads` atom, not a folded corroboration; a mismatched line is dropped and counted.
 - An agent can complete this sequence through the CLI `--json`: create an atom, link
   it, add a hunch, attach evidence, soft-delete a note, run lint, with no conflicting overwrite.
-- Swapping the inference provider or adding a new one, and adding a fetcher, needs config or a script
-  only, no Go changes.
+- Swapping the inference provider or adding a new one needs config or a script only, no Go changes.
 - Every vault-changing command leaves one commit of exactly the files it wrote, pushed when a remote
   exists; a failed push is reported as `PUSH_FAILED` and retried by the next run; `--dry-run` commits
   nothing.
@@ -555,8 +543,8 @@ Every command shown in the docs is exercised by a test so the docs cannot go sta
 
 ## Out of scope for the first release
 
-Web UI; platform-specific fetchers for YouTube, Reddit, Instagram, Twitter/X and the like (the owner
-pastes the text or transcript); an MCP server (agents use the CLI; a thin wrapper can come later);
+Web UI; any fetching of content by slowhunch itself (URLs, web search, platform sites, feeds, scheduled
+ingest: the agent reads and passes text in); an MCP server (agents use the CLI; a thin wrapper can come later);
 posting, commenting or any write to a platform; crawling or following outlinks; logging in for the user
 or storing credentials; downloading or storing media; a vision or audio model (an image is
 described in text by the owner, a song enters through its lyric); OCR, scores or chords; PDF OCR and
@@ -567,8 +555,8 @@ an existing vault (a migration note in the docs is enough).
 ## Open assumptions for the owner to confirm
 
 Go and stdlib-only; Markdown plus git storage; CLI only (no MCP server in the first release); MIT license; vault in a separate
-repo; built-in providers `openai-compatible`, `anthropic`, `exec`; no platform fetchers (a URL that
-cannot be read is pasted as text); optional Jina Reader backend for `web`; atom cap 30 per feed run, 5 per `asserts` input and 3 per
+repo; built-in providers `openai-compatible`, `anthropic`, `exec`; no fetchers (the agent reads
+links and searches and passes the text in); atom cap 5 per `asserts` input and 3 per
 aesthetic input; 10% wildcard
 share; 25% of every `collide` run reserved for cross-medium pairs; `send_policy` default `excerpt_only`; auto-commit, auto-push and pull-before-write on by default.
 
