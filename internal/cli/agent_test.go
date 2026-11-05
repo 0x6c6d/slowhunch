@@ -99,6 +99,7 @@ func TestSchemaAllCommands(t *testing.T) {
 		"hunch state":    {h, "tested"},
 		"hunch due":      nil,
 		"init":           {fresh},
+		"keep":           {"a thought", "--ids", nid, "--topic", t1id},
 		"link":           {nid, t3},
 		"unlink":         {t1id, t3},
 		"lint":           nil,

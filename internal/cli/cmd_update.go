@@ -119,6 +119,14 @@ func cmdUpdate(env *Env, args []string) (any, error) {
 		d.Body = d.Body + "\n" + appendText
 	}
 
+	return commitDoc(env, v, cfg, "update", e, d, *revFlag)
+}
+
+// commitDoc validates and writes the changed copy d of entry e in one
+// transaction (rev-checked against rev) and returns the update result.
+func commitDoc(env *Env, v *vault.Vault, cfg vault.Config, command string, e *vault.Entry, d *frontmatter.Doc, rev string) (any, error) {
+	id, old := e.ID, e.Doc
+	curRev := frontmatter.Rev(old)
 	result := func(rev, hash string) map[string]any {
 		return map[string]any{"id": id, "rev": rev, "path": e.Path, "git": map[string]any{"commit": hash}}
 	}
@@ -130,11 +138,11 @@ func cmdUpdate(env *Env, args []string) (any, error) {
 		return nil, err
 	}
 
-	txn, err := env.begin(v, cfg, "update")
+	txn, err := env.begin(v, cfg, command)
 	if err != nil {
 		return nil, err
 	}
-	rev, err := txn.PutDoc(e.Path, d, *revFlag)
+	newRev, err := txn.PutDoc(e.Path, d, rev)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +150,7 @@ func cmdUpdate(env *Env, args []string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return result(rev, hash), nil
+	return result(newRev, hash), nil
 }
 
 // applyPatch sets each patch key on d (create's value conversion); null deletes.
