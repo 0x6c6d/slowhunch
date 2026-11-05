@@ -37,7 +37,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T012 | 3 | Embedded gate/extract/place prompts with version | T005 | sonnet | done | internal/provider/prompts.go + prompts/*.md + test |
 | T013 | 3 | Full init command and shared CLI vault helpers | T003, T010, T012 | sonnet | done | cmd_init.go full, vaultctx.go helpers + tests |
 | T014 | 3 | create and get commands | T006, T011, T013 | sonnet | done | docjson.go, cmd_create.go, cmd_get.go + tests; defaults state open, status open |
-| T015 | 3 | update command: field patch with rev, topic append | T014 | opus | todo | |
+| T015 | 3 | update command: field patch with rev, topic append | T014 | opus | done | cmd_update.go + tests |
 | T016 | 3 | delete command: soft to archive, hard with yes | T011, T013, T014 | opus | todo | |
 | T017 | 3 | list command with filters | T011, T013, T014 | sonnet | todo | |
 | T018 | 3 | link, unlink, backlinks, graph commands | T011, T013, T014 | sonnet | todo | |
