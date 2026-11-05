@@ -62,7 +62,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T037 | 6 | add outcomes: corroboration, contradiction, echo, hunch evidence | T036 | opus | done | outcomes in add.go, write.go, outcomes_test.go; corroborations schema fixed in follow-up commit |
 | T038 | 6 | add crash resume, dirty-file conflict, exact commit | T036 | opus | done | git_test.go; add.go foreignConflict fix |
 | T039 | 6 | add CLI command and fake-model exec helper for CLI tests | T036, T028, T029, T013 | sonnet | done | cmd_add.go, fakemodel_test.go, cmd_add_test.go |
-| T040 | 7 | Agent sequence, schema and exit-code coverage tests | T015, T016, T018, T019, T023, T039 | sonnet | todo | |
+| T040 | 7 | Agent sequence, schema and exit-code coverage tests | T015, T016, T018, T019, T023, T039 | sonnet | done | cli/agent_test.go |
 | T041 | 7 | Performance test on 2,000 atoms | T022, T024 | sonnet | todo | |
 | T042 | 7 | Policy tests: no push/pull/force, single network and exec sites, test guard | T008, T039 | haiku | todo | |
 | T043 | 7 | README with tested quick start | T004, T014, T015, T016, T017, T018, T019, T020, T022, T024, T026, T037, T038, T039, T040 | sonnet | todo | |
