@@ -34,6 +34,8 @@ func fakeModel() {
 	switch req.Role {
 	case "gate":
 		text = `{"keep": true, "reason": "fake"}`
+	case "collide":
+		text = `{"idea": "fake idea", "cheapest_test": "fake test", "keep": true}`
 	case "place":
 		text = `{"verdict": "new", "target": "", "reason": "fake"}`
 	default:

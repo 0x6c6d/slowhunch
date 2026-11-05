@@ -58,3 +58,34 @@ func TestPromptsInvalid(t *testing.T) {
 		t.Fatal("expected error from invalid vault prompt")
 	}
 }
+
+func TestPromptCollide(t *testing.T) {
+	d := DefaultPrompts()["collide"]
+	p, err := ParsePrompt("collide", d)
+	if err != nil || p.Version != "collide-1" {
+		t.Fatalf("%v %q", err, p.Version)
+	}
+	all, err := LoadPrompts(t.TempDir())
+	if err != nil || len(all) != 4 {
+		t.Fatalf("%v %d", err, len(all))
+	}
+	root := t.TempDir()
+	dir := filepath.Join(root, ".slowhunch", "prompts")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f := filepath.Join(dir, "collide.md")
+	if err := os.WriteFile(f, []byte("---\nrole: collide\nversion: collide-9\n---\nx\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	all, err = LoadPrompts(root)
+	if err != nil || all["collide"].Version != "collide-9" {
+		t.Fatalf("%v %v", err, all["collide"])
+	}
+	if err := os.WriteFile(f, []byte("---\nrole: gate\nversion: gate-1\n---\nx\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadPrompts(root); err == nil || !strings.Contains(err.Error(), "role is gate") {
+		t.Fatalf("%v", err)
+	}
+}

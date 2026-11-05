@@ -77,7 +77,7 @@ func TestInitCreates(t *testing.T) {
 	}
 	files := gitOut(t, d, "show", "--name-only", "--format=", "HEAD")
 	for _, f := range []string{"AGENTS.md", "CLAUDE.md", ".gitignore", ".slowhunch/config.json",
-		".slowhunch/prompts/gate.md", ".slowhunch/prompts/extract.md", ".slowhunch/prompts/place.md"} {
+		".slowhunch/prompts/gate.md", ".slowhunch/prompts/extract.md", ".slowhunch/prompts/place.md", ".slowhunch/prompts/collide.md"} {
 		if !strings.Contains("\n"+files, "\n"+f+"\n") {
 			t.Fatalf("commit lacks %s: %s", f, files)
 		}

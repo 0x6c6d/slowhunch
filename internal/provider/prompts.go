@@ -19,7 +19,7 @@ var promptFS embed.FS
 type Prompt struct{ Role, Version, Text string }
 
 // Roles lists the prompt roles.
-var Roles = []string{"gate", "extract", "place"}
+var Roles = []string{"gate", "extract", "place", "collide"}
 
 // DefaultPrompts returns role -> embedded file bytes.
 func DefaultPrompts() map[string][]byte {

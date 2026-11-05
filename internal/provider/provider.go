@@ -91,10 +91,10 @@ func Effective(cfg vault.Config, role string) vault.ProviderConfig {
 	return eff
 }
 
-// ForRole builds the provider for role (gate, extract or place).
+// ForRole builds the provider for role (gate, extract, place or collide).
 func ForRole(cfg vault.Config, role string) (Provider, error) {
 	if !validRole(role) {
-		return nil, errs.Fatal(errs.BadInput, "unknown role "+role, "use gate, extract or place")
+		return nil, errs.Fatal(errs.BadInput, "unknown role "+role, "use gate, extract, place or collide")
 	}
 	return New(Effective(cfg, role))
 }
