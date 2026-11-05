@@ -3,7 +3,7 @@
 //
 // Struct field declaration order fixes the JSON key order. Conventions: every
 // id inside a report is written as Link(id) (e.g. "[[atom-id]]") so IDs() can
-// check that each exists on disk; Wildcards and Collisions stay empty in v1.
+// check that each exists on disk; Collisions stay empty; Wildcards lists the gate-rejected items of the run.
 package report
 
 import (
@@ -56,6 +56,15 @@ type Echo struct {
 	Cosine float64 `json:"cosine"`
 }
 
+// Wildcard is one gate-rejected item: Item is the source id (single add) or
+// "line <n>: <file>" (batch entry), Reason the gate's reason, Kept whether the
+// wildcard lane wrote it anyway.
+type Wildcard struct {
+	Item   string `json:"item"`
+	Reason string `json:"reason"`
+	Kept   bool   `json:"kept"`
+}
+
 type ItemError struct {
 	Item   string `json:"item"`
 	Code   string `json:"code"`
@@ -77,7 +86,7 @@ type Report struct {
 	Atoms          []AtomRef        `json:"atoms"`
 	Corroborations []Corroboration  `json:"corroborations"`
 	Echoes         []Echo           `json:"echoes"`
-	Wildcards      []any            `json:"wildcards"`
+	Wildcards      []Wildcard       `json:"wildcards"`
 	Collisions     []any            `json:"collisions"`
 	Counts         map[string]int   `json:"counts"`
 	Errors         []ItemError      `json:"errors"`
@@ -94,7 +103,7 @@ func New(runID string) *Report {
 		Atoms:          []AtomRef{},
 		Corroborations: []Corroboration{},
 		Echoes:         []Echo{},
-		Wildcards:      []any{},
+		Wildcards:      []Wildcard{},
 		Collisions:     []any{},
 		Counts:         map[string]int{},
 		Errors:         []ItemError{},

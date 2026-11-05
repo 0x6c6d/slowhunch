@@ -41,7 +41,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T009 | 3 | Exported scrubbed-env argv runner | T000 | opus | done | exec.go RunArgv+IsNotFound, TestRunArgv |
 | T010 | 3 | PDF intake via pdf.command | T001 T009 | opus | done | intake ReadWith + PDF via RunArgv, tests adapted |
 | T011 | 3 | Batch add --from | T007 T010 | opus | done | pipeline/batch.go, add.go stages, cmd_add --from, batch tests |
-| T012 | 3 | Wildcard lane | T011 | opus | todo | |
+| T012 | 3 | Wildcard lane | T011 | opus | done | pipeline/wildcard.go, report.Wildcard, tests |
 | T013 | 3 | Per-medium cap runs_per_day | T002 T011 | sonnet | todo | |
 | T014 | 3 | Per-medium cap tokens_per_run | T002 T011 | sonnet | todo | |
 | T015 | 4 | Collide pair selection | T001 | sonnet | todo | |

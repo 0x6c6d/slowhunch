@@ -113,7 +113,7 @@ type BatchResult struct {
 type BatchState struct {
 	RunID   string
 	Entries []BatchEntry
-	// Rejected are the entries the gate did not keep, in entry order.
+	// Rejected are the entries the gate rejected (keep=false), in entry order.
 	Rejected []BatchEntry
 
 	runs    []*itemRun // per entry; nil when stage 1 failed
@@ -152,6 +152,9 @@ func AddBatch(ctx context.Context, d Deps, from string, o Options) (*BatchResult
 
 	// Stage 1: intake, checks, secret check and gate, per entry in order.
 	sidTaken := map[string]bool{}
+	var pool []*itemRun
+	var poolEntry []int
+	nKept := 0
 	for i, e := range entries {
 		if e.Err != nil {
 			st.fail(i, e.Err)
@@ -173,8 +176,18 @@ func AddBatch(ctx context.Context, d Deps, from string, o Options) (*BatchResult
 			continue
 		}
 		gateItem(ctx, d, r)
-		if r.done {
+		if r.rejected {
 			st.Rejected = append(st.Rejected, e)
+			pool = append(pool, r)
+			poolEntry = append(poolEntry, i)
+		}
+	}
+
+	// Wildcard lane: the gate-rejected entries of the batch are one pool.
+	for k, kept := range chooseWildcards(d.Config.Place.WildcardShare, pool) {
+		recordWildcard(pool[k], entries[poolEntry[k]].Label(), kept)
+		if kept {
+			nKept++
 		}
 	}
 
@@ -280,6 +293,8 @@ func AddBatch(ctx context.Context, d Deps, from string, o Options) (*BatchResult
 	res.Counts["entries"] = len(entries)
 	res.Counts["written"] = nWritten
 	res.Counts["failed"] = nFailed
+	res.Counts["wildcards"] = len(pool)
+	res.Counts["wildcards_kept"] = nKept
 	if nWritten == 0 && nFailed == len(entries) && firstErr != nil {
 		return res, batchError(firstErr, res)
 	}

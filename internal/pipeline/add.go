@@ -118,6 +118,10 @@ type itemRun struct {
 	noCommit                bool
 	// done means rep is final: the item is existing, rejected or produced no atoms.
 	done bool
+	// rejected means the gate answered keep=false (not a gate error).
+	rejected bool
+	// wildcard means a rejected item kept by the wildcard lane; its atoms get the tag wildcard.
+	wildcard bool
 }
 
 // prepareItem is stage 1 up to the gate: intake, checks, secret check,
@@ -247,6 +251,7 @@ func gateItem(ctx context.Context, d Deps, r *itemRun) {
 		rep.Counts["errors"] = len(rep.Errors)
 		rep.Git = report.GitInfo{Skipped: "rejected"}
 		r.done = true
+		r.rejected = gerr == nil
 	}
 }
 
@@ -259,6 +264,11 @@ func extractPlace(ctx context.Context, d Deps, r *itemRun, ix *vault.Index, note
 	// 5. Extract.
 	atoms, drops, eu, eerr := Extract(ctx, r.extractP, d.Prompts["extract"], it, d.Config.Caps)
 	rep.AddCost("extract", toUsage(eu))
+	if r.wildcard {
+		for k := range atoms {
+			atoms[k].Tags = addTag(atoms[k].Tags, wildcardTag)
+		}
+	}
 	if eerr != nil {
 		code, msg := provErr(eerr)
 		rep.Source = ""
@@ -446,8 +456,12 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 	if r.done {
 		return r.rep, nil
 	}
-	// 4. Gate.
+	// 4. Gate, then the wildcard lane for a rejected item.
 	gateItem(ctx, d, r)
+	if r.rejected {
+		kept := chooseWildcards(d.Config.Place.WildcardShare, []*itemRun{r})
+		recordWildcard(r, r.it.SourceID, kept[0])
+	}
 	if r.done {
 		return r.rep, nil
 	}
