@@ -100,15 +100,30 @@ func (d Deps) provider(role, medium string) (provider.Provider, error) {
 	return d.Providers[role], nil
 }
 
-// Add runs one intake item from reading to commit.
-func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
-	if d.Vault == nil {
-		return nil, errs.New(errs.BadInput, "no vault", "")
+func (d Deps) clock() func() time.Time {
+	if d.Now == nil {
+		return time.Now
 	}
-	now := d.Now
-	if now == nil {
-		now = time.Now
-	}
+	return d.Now
+}
+
+// itemRun is one intake item moving between the stages of an add run.
+type itemRun struct {
+	rep                     *report.Report
+	normalized, textHash    string
+	stored                  []byte
+	it                      Item
+	gateP, extractP, placeP provider.Provider
+	writer                  string
+	noCommit                bool
+	// done means rep is final: the item is existing, rejected or produced no atoms.
+	done bool
+}
+
+// prepareItem is stage 1 up to the gate: intake, checks, secret check,
+// idempotency and source id. newRunID is called once the report is created;
+// loadIndex supplies the index after the input checks; sidTaken, when non-nil, holds source ids already claimed by this run.
+func prepareItem(d Deps, o Options, loadIndex func() (*vault.Index, error), newRunID func() string, sidTaken map[string]bool) (*itemRun, *vault.Index, error) {
 	writer := d.Author
 	if writer == "" {
 		writer = "human"
@@ -117,89 +132,104 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 	// 1. Intake.
 	in, err := intake.ReadWith(o.Arg, o.Stdin, intake.ReadOptions{PDFCommand: o.PDFCommand})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	medium, inferred := o.Medium, false
 	if medium == "" {
 		medium, inferred = intake.InferMedium(in), true
 	}
 	if err := intake.Check(in, medium, o.Title, o.Author); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	normalized := intake.Normalize(in.Text, medium)
 	textHash := intake.TextHash(normalized)
 
-	ix, _, err := d.Vault.LoadIndex()
+	ix, err := loadIndex()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if o.Hunch != "" {
 		if e, ok := ix.Get(o.Hunch); !ok || e.Type != "hunch" {
-			return nil, errs.New(errs.NotFound, "no hunch "+o.Hunch, "list hunches with `slowhunch list hunch`")
+			return nil, nil, errs.New(errs.NotFound, "no hunch "+o.Hunch, "list hunches with `slowhunch list hunch`")
 		}
 	}
 
 	// 2. Secrets never leave the machine.
 	if intake.ContainsSecret(normalized) || intake.ContainsSecret(in.Text) {
-		return nil, errs.New(errs.BadInput, "input contains a secret-like string; nothing was sent", "remove the secret and add again")
+		return nil, nil, errs.New(errs.BadInput, "input contains a secret-like string; nothing was sent", "remove the secret and add again")
 	}
 
-	rep := report.New(vault.NewRunID(now()))
+	rep := report.New(newRunID())
 	rep.Medium = medium
 	rep.MediumInferred = inferred
+	r := &itemRun{rep: rep, normalized: normalized, textHash: textHash, writer: writer}
 
 	// 3. Idempotency.
 	for _, e := range ix.OfType("source") {
 		if e.Doc.GetString("text_hash") == textHash {
-			rep.Source = report.Link(e.ID)
-			rep.Counts["existing"] = 1
-			rep.Git = report.GitInfo{Skipped: "existing"}
-			return rep, nil
+			markExisting(rep, e.ID)
+			r.done = true
+			return r, ix, nil
 		}
 	}
 
 	sid := vault.SourceID(medium, o.Author, o.Title, normalized)
-	noCommit := o.NoCommit || !d.Config.Git.Commit
-	if err := foreignConflict(d, noCommit, inboxPath(sid), sourcePath(sid)); err != nil {
-		return nil, err
+	r.noCommit = o.NoCommit || !d.Config.Git.Commit
+	if err := foreignConflict(d, r.noCommit, inboxPath(sid), sourcePath(sid)); err != nil {
+		return nil, nil, err
 	}
 	sid = vault.UniqueID(sid, func(c string) bool {
+		if sidTaken[c] {
+			return true
+		}
 		if _, ok := ix.Get(c); ok {
 			return true
 		}
 		return d.Vault.Exists(sourcePath(c)) || d.Vault.Exists(inboxPath(c))
 	})
-
-	// 4. Gate.
-	stored := vault.FormatInbox(normalized, medium)
-	delim, err := intake.NewDelimiter(string(stored) + "\n" + in.Text)
-	if err != nil {
-		return nil, err
+	if sidTaken != nil {
+		sidTaken[sid] = true
 	}
-	it := Item{
+
+	r.stored = vault.FormatInbox(normalized, medium)
+	delim, err := intake.NewDelimiter(string(r.stored) + "\n" + in.Text)
+	if err != nil {
+		return nil, nil, err
+	}
+	r.it = Item{
 		SourceID: sid, Medium: medium, Title: o.Title, Author: o.Author, URL: o.URL,
-		Note: o.Note, Hunch: o.Hunch, Stored: stored, Plain: vault.InboxPlain(stored, medium),
+		Note: o.Note, Hunch: o.Hunch, Stored: r.stored, Plain: vault.InboxPlain(r.stored, medium),
 		Delim: delim, Force: o.Force,
 	}
 	rep.Source = report.Link(sid)
-	gateP, perr0 := d.provider("gate", medium)
-	if perr0 != nil {
-		return nil, perr0
+	if r.gateP, err = d.provider("gate", medium); err != nil {
+		return nil, nil, err
 	}
-	extractP, perr0 := d.provider("extract", medium)
-	if perr0 != nil {
-		return nil, perr0
+	if r.extractP, err = d.provider("extract", medium); err != nil {
+		return nil, nil, err
 	}
-	placeP, perr0 := d.provider("place", medium)
-	if perr0 != nil {
-		return nil, perr0
+	if r.placeP, err = d.provider("place", medium); err != nil {
+		return nil, nil, err
 	}
 	if d.AuthorFor != nil {
 		if a := d.AuthorFor("extract", medium); a != "" {
-			writer = a
+			r.writer = a
 		}
 	}
-	keep, reason, gu, gerr := Gate(ctx, gateP, d.Prompts["gate"], it)
+	return r, ix, nil
+}
+
+// markExisting finalizes rep for an input whose text is already the source id.
+func markExisting(rep *report.Report, id string) {
+	rep.Source = report.Link(id)
+	rep.Counts["existing"] = 1
+	rep.Git = report.GitInfo{Skipped: "existing"}
+}
+
+// gateItem is the gate step; a rejected item is marked done.
+func gateItem(ctx context.Context, d Deps, r *itemRun) {
+	rep := r.rep
+	keep, reason, gu, gerr := Gate(ctx, r.gateP, d.Prompts["gate"], r.it)
 	if gu != (provider.Usage{}) {
 		rep.AddCost("gate", toUsage(gu))
 	}
@@ -213,14 +243,21 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 		}
 		rep.Source = ""
 		rep.Counts["rejected"] = 1
-		rep.Errors = append(rep.Errors, report.ItemError{Item: sid, Code: code, Reason: msg})
+		rep.Errors = append(rep.Errors, report.ItemError{Item: r.it.SourceID, Code: code, Reason: msg})
 		rep.Counts["errors"] = len(rep.Errors)
 		rep.Git = report.GitInfo{Skipped: "rejected"}
-		return rep, nil
+		r.done = true
 	}
+}
+
+// extractPlace is stage 2 up to the writes: extract, place and the outcomes
+// assembled in memory. It returns nil when the item ends without writes.
+// noteTaken holds note ids already claimed by this run.
+func extractPlace(ctx context.Context, d Deps, r *itemRun, ix *vault.Index, noteTaken map[string]bool) (*applied, error) {
+	rep, it, sid := r.rep, r.it, r.it.SourceID
 
 	// 5. Extract.
-	atoms, drops, eu, eerr := Extract(ctx, extractP, d.Prompts["extract"], it, d.Config.Caps)
+	atoms, drops, eu, eerr := Extract(ctx, r.extractP, d.Prompts["extract"], it, d.Config.Caps)
 	rep.AddCost("extract", toUsage(eu))
 	if eerr != nil {
 		code, msg := provErr(eerr)
@@ -228,7 +265,8 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 		rep.Errors = append(rep.Errors, report.ItemError{Item: sid, Code: code, Reason: msg})
 		rep.Counts["errors"] = len(rep.Errors)
 		rep.Git = report.GitInfo{Skipped: "extract-failed"}
-		return rep, nil
+		r.done = true
+		return nil, nil
 	}
 	dropped := map[int]bool{}
 	for _, dr := range drops {
@@ -245,7 +283,7 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 	}
 
 	// 6. Place.
-	aesthetic := vault.IsAesthetic(medium)
+	aesthetic := vault.IsAesthetic(it.Medium)
 	var cands []Candidate
 	for _, e := range ix.OfType("note") {
 		tags := e.Doc.GetList("tags")
@@ -258,11 +296,10 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 			Aesthetic: vault.IsAesthetic(ix.MediumOf(e.ID)),
 		})
 	}
-	taken := map[string]bool{}
 	var plan []placed
 	for k, a := range atoms {
 		nbs := BuildNeighbours(a, aesthetic, cands, d.Config.Place)
-		dec, pu, perr := Place(ctx, placeP, d.Prompts["place"], a, it, nbs, d.Config.Place)
+		dec, pu, perr := Place(ctx, r.placeP, d.Prompts["place"], a, it, nbs, d.Config.Place)
 		if pu != (provider.Usage{}) {
 			rep.AddCost("place", toUsage(pu))
 		}
@@ -278,7 +315,7 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 			continue
 		}
 		id := vault.UniqueID(vault.AtomID(a.Stance, sid, a.Locator, a.Claim), func(c string) bool {
-			if taken[c] {
+			if noteTaken[c] {
 				return true
 			}
 			if _, ok := ix.Get(c); ok {
@@ -286,7 +323,7 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 			}
 			return d.Vault.Exists(notePath(c))
 		})
-		taken[id] = true
+		noteTaken[id] = true
 		plan = append(plan, placed{ID: id, Atom: a, Decision: dec})
 		cands = append(cands, Candidate{
 			ID:        id,
@@ -303,55 +340,38 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 	if len(plan) == 0 {
 		rep.Source = ""
 		rep.Git = report.GitInfo{Skipped: "no-atoms"}
-		return rep, nil
+		r.done = true
+		return nil, nil
 	}
 
 	// 7. Outcomes, assembled in memory before anything is written.
-	today := now().Format("2006-01-02")
-	ap, err := applyOutcomes(ix, plan, it, writer, today, textHash, d.Config.Place, rep)
-	if err != nil {
-		return nil, err
-	}
+	today := d.clock()().Format("2006-01-02")
+	return applyOutcomes(ix, plan, it, r.writer, today, r.textHash, d.Config.Place, rep)
+}
 
-	// 8. Writes: every path is touched before the first write.
-	txn, err := d.Vault.Begin("add", vault.TxnOptions{
-		RunID:          rep.RunID,
-		DryRun:         o.DryRun,
-		NoCommit:       noCommit,
-		Committer:      d.Committer,
-		PromptVersions: provider.Versions(d.Prompts),
-		Now:            now,
-	})
-	if err != nil {
-		return nil, err
+// writeItem writes one item inside txn; every path is touched before the
+// first write. It returns the ids for the commit subject and the planned ids.
+func writeItem(txn *vault.Txn, r *itemRun, ap *applied) ([]string, map[string]bool, error) {
+	sid := r.it.SourceID
+	if err := txn.Touch(touchPaths(r, ap)...); err != nil {
+		return nil, nil, err
 	}
-	paths := []string{inboxPath(sid), sourcePath(sid)}
-	for _, id := range ap.newIDs {
-		paths = append(paths, notePath(id))
-	}
-	for _, m := range ap.mods {
-		paths = append(paths, m.path)
-	}
-	if err := txn.Touch(paths...); err != nil {
-		return nil, err
-	}
-	if err := txn.WriteFile(inboxPath(sid), stored); err != nil {
-		return nil, err
+	if err := txn.WriteFile(inboxPath(sid), r.stored); err != nil {
+		return nil, nil, err
 	}
 	if _, err := txn.PutDoc(sourcePath(sid), ap.source, ""); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, id := range ap.newIDs {
 		if _, err := txn.PutDoc(notePath(id), ap.notes[id], ""); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	for _, m := range ap.mods {
 		if _, err := txn.PutDoc(m.path, m.doc, m.rev); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-
 	ids := []string{sid}
 	planned := map[string]bool{sid: true}
 	for _, id := range ap.newIDs {
@@ -361,41 +381,108 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 	for _, m := range ap.mods {
 		ids = append(ids, m.id)
 	}
+	return ids, planned, nil
+}
+
+// gitInfo is the git member of a report for a run that wrote files.
+func gitInfo(d Deps, dryRun, noCommit bool, hash string) report.GitInfo {
+	switch {
+	case dryRun:
+		return report.GitInfo{Skipped: "dry-run"}
+	case noCommit:
+		return report.GitInfo{Skipped: "no-commit"}
+	case d.Committer == nil:
+		return report.GitInfo{Skipped: "no-git"}
+	default:
+		return report.GitInfo{Commit: hash}
+	}
+}
+
+// checkReportIDs fails when rep names an id that is not in the vault; in
+// dry-run the planned ids are exempt.
+func checkReportIDs(v *vault.Vault, rep *report.Report, dryRun bool, planned map[string]bool) error {
+	for _, id := range rep.IDs() {
+		if dryRun && planned[id] {
+			continue
+		}
+		found := false
+		for _, f := range docFolders {
+			if v.Exists(f + "/" + id + ".md") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return errs.New(errs.NotFound, "report names "+id+" but it is not in the vault", "")
+		}
+	}
+	return nil
+}
+
+func (d Deps) begin(runID string, dryRun, noCommit bool) (*vault.Txn, error) {
+	return d.Vault.Begin("add", vault.TxnOptions{
+		RunID:          runID,
+		DryRun:         dryRun,
+		NoCommit:       noCommit,
+		Committer:      d.Committer,
+		PromptVersions: provider.Versions(d.Prompts),
+		Now:            d.clock(),
+	})
+}
+
+// Add runs one intake item from reading to commit.
+func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
+	if d.Vault == nil {
+		return nil, errs.New(errs.BadInput, "no vault", "")
+	}
+	now := d.clock()
+	r, ix, err := prepareItem(d, o, func() (*vault.Index, error) {
+		ix, _, err := d.Vault.LoadIndex()
+		return ix, err
+	}, func() string { return vault.NewRunID(now()) }, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.done {
+		return r.rep, nil
+	}
+	// 4. Gate.
+	gateItem(ctx, d, r)
+	if r.done {
+		return r.rep, nil
+	}
+	ap, err := extractPlace(ctx, d, r, ix, map[string]bool{})
+	if err != nil {
+		return nil, err
+	}
+	if ap == nil {
+		return r.rep, nil
+	}
+	rep := r.rep
+
+	// 8. Writes.
+	txn, err := d.begin(rep.RunID, o.DryRun, r.noCommit)
+	if err != nil {
+		return nil, err
+	}
+	ids, planned, err := writeItem(txn, r, ap)
+	if err != nil {
+		return nil, err
+	}
 
 	// 9. Commit and save.
 	hash, err := txn.Commit(ids, fmt.Sprintf("atoms: %d", len(ap.newIDs)))
 	if err != nil {
 		return nil, err
 	}
-	switch {
-	case o.DryRun:
-		rep.Git = report.GitInfo{Skipped: "dry-run"}
-	case noCommit:
-		rep.Git = report.GitInfo{Skipped: "no-commit"}
-	case d.Committer == nil:
-		rep.Git = report.GitInfo{Skipped: "no-git"}
-	default:
-		rep.Git = report.GitInfo{Commit: hash}
-	}
+	rep.Git = gitInfo(d, o.DryRun, r.noCommit, hash)
 	if !o.DryRun {
 		if err := rep.Save(d.Vault); err != nil {
 			return nil, err
 		}
 	}
-	for _, id := range rep.IDs() {
-		if o.DryRun && planned[id] {
-			continue
-		}
-		found := false
-		for _, f := range docFolders {
-			if d.Vault.Exists(f + "/" + id + ".md") {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, errs.New(errs.NotFound, "report names "+id+" but it is not in the vault", "")
-		}
+	if err := checkReportIDs(d.Vault, rep, o.DryRun, planned); err != nil {
+		return nil, err
 	}
 	return rep, nil
 }
