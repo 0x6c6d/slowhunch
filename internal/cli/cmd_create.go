@@ -150,7 +150,7 @@ func cmdCreate(env *Env, args []string) (any, error) {
 		return nil, err
 	}
 
-	txn, err := env.begin(v, cfg, "create "+id)
+	txn, err := env.begin(v, cfg, "create")
 	if err != nil {
 		return nil, err
 	}

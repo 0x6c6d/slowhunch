@@ -46,6 +46,9 @@ func TestCRUDUpdatePatch(t *testing.T) {
 	if !strings.HasPrefix(gitOut(t, d, "log", "-1", "--format=%s"), "slowhunch: update trees") {
 		t.Fatal(gitOut(t, d, "log", "-1", "--format=%s"))
 	}
+	if subj := strings.TrimSpace(gitOut(t, d, "log", "-1", "--format=%s")); subj != "slowhunch: update trees (updated: 1)" {
+		t.Fatalf("commit subject: %q", subj)
+	}
 	// same patch again with the new rev changes nothing: no write, no commit
 	rc, r2, s := runCmd(d, "update", "trees", "--rev", r["rev"].(string), "--data", `{"tags":["poetry","nature"]}`)
 	if rc != 0 || r2["rev"] != r["rev"] || commitCount(t, d) != before+1 {

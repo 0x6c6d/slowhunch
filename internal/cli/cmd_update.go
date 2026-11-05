@@ -130,7 +130,7 @@ func cmdUpdate(env *Env, args []string) (any, error) {
 		return nil, err
 	}
 
-	txn, err := env.begin(v, cfg, "update "+id)
+	txn, err := env.begin(v, cfg, "update")
 	if err != nil {
 		return nil, err
 	}
