@@ -27,7 +27,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T002 | 1 | errs package and CLI core: dispatch, global flags, JSON envelope, exit codes | T001 | sonnet | done | internal/errs, internal/cli core, main.go |
 | T003 | 1 | Vault config defaults and minimal init | T002 | sonnet | done | internal/vault/config.go, internal/cli/cmd_init.go + tests |
 | T004 | 1 | skill command (guide at most 60 lines) | T002 | haiku | done | internal/cli/cmd_skill.go + test |
-| T005 | 2 | Frontmatter subset parser, canonical writer, rev | T002 | opus | todo | |
+| T005 | 2 | Frontmatter subset parser, canonical writer, rev | T002 | opus | done | internal/frontmatter + tests |
 | T006 | 2 | Id generation, slugs and collision suffixes | T001 | opus | todo | |
 | T007 | 2 | Type schema, field validation, locator grammar, links, inbox format | T005 | sonnet | todo | |
 | T008 | 2 | Vault write path: confinement, atomic write, CONFLICT_REV, audit, state, test guard | T005 | opus | todo | |
