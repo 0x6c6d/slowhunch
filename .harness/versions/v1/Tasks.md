@@ -41,7 +41,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T016 | 3 | delete command: soft to archive, hard with yes | T011, T013, T014 | opus | done | cmd_delete.go + tests |
 | T017 | 3 | list command with filters | T011, T013, T014 | sonnet | done | cmd_list.go + tests |
 | T018 | 3 | link, unlink, backlinks, graph commands | T011, T013, T014 | sonnet | done | cmd_link.go, cmd_graph.go + tests |
-| T019 | 3 | hunch add, evidence, state, due commands | T006, T011, T013, T014 | sonnet | todo | |
+| T019 | 3 | hunch add, evidence, state, due commands | T006, T011, T013, T014 | sonnet | done | cmd_hunch.go + tests |
 | T020 | 3 | source facts command | T007, T011, T013 | haiku | todo | |
 | T021 | 4 | TF-IDF index, cosine, neighbour selection | T001 | sonnet | todo | |
 | T022 | 4 | search command: ranking, filters, budget, partners | T021, T011, T013 | sonnet | todo | |
