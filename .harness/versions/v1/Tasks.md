@@ -30,7 +30,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T005 | 2 | Frontmatter subset parser, canonical writer, rev | T002 | opus | done | internal/frontmatter + tests |
 | T006 | 2 | Id generation, slugs and collision suffixes | T001 | opus | done | internal/vault/ids.go + test |
 | T007 | 2 | Type schema, field validation, locator grammar, links, inbox format | T005 | sonnet | done | internal/vault schema, locator, links, inbox + tests |
-| T008 | 2 | Vault write path: confinement, atomic write, CONFLICT_REV, audit, state, test guard | T005 | opus | todo | |
+| T008 | 2 | Vault write path: confinement, atomic write, CONFLICT_REV, audit, state, test guard | T005 | opus | done | internal/vault store.go, guard.go + tests |
 | T009 | 2 | gitops: init, dirty check, exact-path commit, GIT_MISSING | T002 | opus | todo | |
 | T010 | 2 | Transactions: conflict check, pending-path resume, one commit per run | T008, T009 | opus | todo | |
 | T011 | 2 | In-memory index, backlinks, neighbourhood | T007, T008 | sonnet | todo | |
