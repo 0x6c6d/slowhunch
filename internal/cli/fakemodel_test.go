@@ -36,6 +36,30 @@ func fakeModel() {
 		text = `{"keep": true, "reason": "fake"}`
 	case "collide":
 		text = `{"idea": "fake idea", "cheapest_test": "fake test", "keep": true}`
+		// collide-replies=<file>: a JSON map "<id> <id>" -> reply text, used
+		// when both ids appear in the request.
+		for _, a := range os.Args {
+			path, ok := strings.CutPrefix(a, "collide-replies=")
+			if !ok {
+				continue
+			}
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			var replies map[string]string
+			if err := json.Unmarshal(raw, &replies); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			for k, r := range replies {
+				ids := strings.Fields(k)
+				if len(ids) == 2 && strings.Contains(req.User, "id: "+ids[0]+"\n") && strings.Contains(req.User, "id: "+ids[1]+"\n") {
+					text = r
+				}
+			}
+		}
 	case "place":
 		text = `{"verdict": "new", "target": "", "reason": "fake"}`
 	default:

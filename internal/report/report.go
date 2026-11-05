@@ -3,7 +3,7 @@
 //
 // Struct field declaration order fixes the JSON key order. Conventions: every
 // id inside a report is written as Link(id) (e.g. "[[atom-id]]") so IDs() can
-// check that each exists on disk; Collisions stay empty; Wildcards lists the gate-rejected items of the run.
+// check that each exists on disk; Collisions lists the proposals of a collide run; Wildcards lists the gate-rejected items of the run.
 package report
 
 import (
@@ -65,6 +65,13 @@ type Wildcard struct {
 	Kept   bool   `json:"kept"`
 }
 
+// Collision is one kept collide pair: Items are the two linked ids, Proposal
+// the linked proposal written for them.
+type Collision struct {
+	Items    []string `json:"items"`
+	Proposal string   `json:"proposal"`
+}
+
 type ItemError struct {
 	Item   string `json:"item"`
 	Code   string `json:"code"`
@@ -87,7 +94,7 @@ type Report struct {
 	Corroborations []Corroboration  `json:"corroborations"`
 	Echoes         []Echo           `json:"echoes"`
 	Wildcards      []Wildcard       `json:"wildcards"`
-	Collisions     []any            `json:"collisions"`
+	Collisions     []Collision      `json:"collisions"`
 	Counts         map[string]int   `json:"counts"`
 	Errors         []ItemError      `json:"errors"`
 	Cost           map[string]Usage `json:"cost"`
@@ -104,7 +111,7 @@ func New(runID string) *Report {
 		Corroborations: []Corroboration{},
 		Echoes:         []Echo{},
 		Wildcards:      []Wildcard{},
-		Collisions:     []any{},
+		Collisions:     []Collision{},
 		Counts:         map[string]int{},
 		Errors:         []ItemError{},
 		Cost:           map[string]Usage{},

@@ -89,6 +89,7 @@ func TestSchemaAllCommands(t *testing.T) {
 	valid := map[string][]string{
 		"add":            {"Sleep matters for memory. Studies show it.", "--as", "article"},
 		"backlinks":      {nid},
+		"collide":        {"--dry-run"},
 		"create":         {"topic", "--data", `{"title":"Four"}`},
 		"delete":         {t2},
 		"get":            {nid},
