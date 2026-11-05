@@ -105,11 +105,22 @@ func importsOf(t *testing.T, f goFile) []importRef {
 	return out
 }
 
-var forbiddenRe = regexp.MustCompile(`git (push|pull)|--force`)
+// forceTextRe matches force/rewrite git usage anywhere in a line, comments included.
+// `--force` also covers `--force-with-lease`.
+var forceTextRe = regexp.MustCompile(`--force|reset --hard|filter-branch|rebase -i\b|rebase --interactive|push -f\b`)
 
-var forbiddenLits = map[string]bool{"push": true, "pull": true, "--force": true}
+// forceLits are string literals banned in every non-test file.
+var forceLits = map[string]bool{"--force": true, "--force-with-lease": true, "filter-branch": true, "--interactive": true}
 
-func TestNoForbiddenGit(t *testing.T) {
+// gitopsForceLits are additionally banned in internal/gitops/ non-test files.
+var gitopsForceLits = map[string]bool{"-f": true, "--hard": true, "reset": true, "-i": true, "fetch": true, "update-ref": true, "replace": true}
+
+// isForceRefspec reports whether v looks like a force refspec: "+" followed by a non-space character.
+func isForceRefspec(v string) bool {
+	return len(v) > 1 && v[0] == '+' && v[1] != ' ' && v[1] != '\t' && v[1] != '\n' && v[1] != '\r'
+}
+
+func TestNoForceGit(t *testing.T) {
 	for _, f := range goFiles(t) {
 		if f.test {
 			continue
@@ -119,10 +130,11 @@ func TestNoForbiddenGit(t *testing.T) {
 			t.Fatal(err)
 		}
 		for i, line := range strings.Split(string(src), "\n") {
-			if m := forbiddenRe.FindString(line); m != "" {
+			for _, m := range forceTextRe.FindAllString(line, -1) {
 				t.Errorf("%s:%d: forbidden text %q", f.rel, i+1, m)
 			}
 		}
+		inGitops := strings.HasPrefix(f.rel, "internal/gitops/")
 		fset := token.NewFileSet()
 		af, err := parser.ParseFile(fset, f.path, src, parser.ParseComments)
 		if err != nil {
@@ -133,8 +145,92 @@ func TestNoForbiddenGit(t *testing.T) {
 			if !ok || lit.Kind != token.STRING {
 				return true
 			}
-			if v, err := strconv.Unquote(lit.Value); err == nil && forbiddenLits[v] {
-				t.Errorf("%s:%d: forbidden string literal %s", f.rel, fset.Position(lit.Pos()).Line, lit.Value)
+			v, err := strconv.Unquote(lit.Value)
+			if err != nil {
+				return true
+			}
+			line := fset.Position(lit.Pos()).Line
+			switch {
+			case forceLits[v]:
+				t.Errorf("%s:%d: forbidden string literal %s", f.rel, line, lit.Value)
+			case isForceRefspec(v):
+				t.Errorf("%s:%d: force refspec literal %s", f.rel, line, lit.Value)
+			case inGitops && gitopsForceLits[v]:
+				t.Errorf("%s:%d: forbidden gitops string literal %s", f.rel, line, lit.Value)
+			}
+			return true
+		})
+	}
+}
+
+// execNames returns the local names under which af imports os/exec.
+func execNames(af *ast.File) map[string]bool {
+	names := map[string]bool{}
+	for _, spec := range af.Imports {
+		p, err := strconv.Unquote(spec.Path.Value)
+		if err != nil || p != "os/exec" {
+			continue
+		}
+		name := "exec"
+		if spec.Name != nil {
+			name = spec.Name.Name
+		}
+		names[name] = true
+	}
+	return names
+}
+
+// isGitLit reports whether e is the string literal "git".
+func isGitLit(e ast.Expr) bool {
+	lit, ok := e.(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return false
+	}
+	v, err := strconv.Unquote(lit.Value)
+	return err == nil && v == "git"
+}
+
+func TestGitOnlyGitops(t *testing.T) {
+	for _, f := range goFiles(t) {
+		if f.test || strings.HasPrefix(f.rel, "internal/gitops/") {
+			continue
+		}
+		fset := token.NewFileSet()
+		af, err := parser.ParseFile(fset, f.path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", f.rel, err)
+		}
+		names := execNames(af)
+		if len(names) == 0 {
+			names["exec"] = true // still catch an unresolved exec selector
+		}
+		ast.Inspect(af, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			x, ok := sel.X.(*ast.Ident)
+			if !ok || !names[x.Name] {
+				return true
+			}
+			line := fset.Position(call.Pos()).Line
+			switch sel.Sel.Name {
+			case "Command":
+				if len(call.Args) > 0 && isGitLit(call.Args[0]) {
+					t.Errorf("%s:%d: exec.Command(\"git\", ...) outside internal/gitops/", f.rel, line)
+				}
+			case "CommandContext":
+				if len(call.Args) > 1 && isGitLit(call.Args[1]) {
+					t.Errorf("%s:%d: exec.CommandContext(ctx, \"git\", ...) outside internal/gitops/", f.rel, line)
+				}
+			case "LookPath":
+				if len(call.Args) > 0 && isGitLit(call.Args[0]) {
+					t.Errorf("%s:%d: exec.LookPath(\"git\") outside internal/gitops/", f.rel, line)
+				}
 			}
 			return true
 		})
