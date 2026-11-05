@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"os"
+
+	"github.com/0x6c6d/slowhunch/internal/cli"
 )
 
 func main() {
-	fmt.Fprintln(os.Stderr, "slowhunch: no commands yet")
-	os.Exit(2)
+	os.Exit(cli.Run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
