@@ -54,7 +54,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T029 | 5 | exec provider with scrubbed environment | T027 | opus | done | provider/exec + tests; scrubbed env, no shell |
 | T030 | 5 | Intake reading, input checks, medium inference | T007 | sonnet | done | internal/intake + tests |
 | T031 | 5 | Intake normalization and text hash | T001 | sonnet | done | intake/normalize.go + tests |
-| T032 | 5 | Prompt fencing, look-alike neutralization, secret detector | T001 | opus | todo | |
+| T032 | 5 | Prompt fencing, look-alike neutralization, secret detector | T001 | opus | done | intake/fence.go, secret.go + tests |
 | T033 | 6 | Pipeline item types and gate step | T027, T030, T031, T032, T007 | sonnet | todo | |
 | T034 | 6 | Extract step with code-enforced atom rules and caps | T033 | sonnet | todo | |
 | T035 | 6 | Place step: neighbours, model verdict, code decision | T033, T021 | opus | todo | |
