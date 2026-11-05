@@ -35,7 +35,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T010 | 2 | Transactions: conflict check, pending-path resume, one commit per run | T008, T009 | opus | done | internal/vault/txn.go + tests |
 | T011 | 2 | In-memory index, backlinks, neighbourhood | T007, T008 | sonnet | done | internal/vault/index.go + tests |
 | T012 | 3 | Embedded gate/extract/place prompts with version | T005 | sonnet | done | internal/provider/prompts.go + prompts/*.md + test |
-| T013 | 3 | Full init command and shared CLI vault helpers | T003, T010, T012 | sonnet | todo | |
+| T013 | 3 | Full init command and shared CLI vault helpers | T003, T010, T012 | sonnet | done | cmd_init.go full, vaultctx.go helpers + tests |
 | T014 | 3 | create and get commands | T006, T011, T013 | sonnet | todo | |
 | T015 | 3 | update command: field patch with rev, topic append | T014 | opus | todo | |
 | T016 | 3 | delete command: soft to archive, hard with yes | T011, T013, T014 | opus | todo | |
