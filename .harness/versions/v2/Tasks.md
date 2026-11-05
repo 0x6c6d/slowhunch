@@ -44,7 +44,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T012 | 3 | Wildcard lane | T011 | opus | done | pipeline/wildcard.go, report.Wildcard, tests |
 | T013 | 3 | Per-medium cap runs_per_day | T002 T011 | sonnet | done | runs_per_day cap; counts only mediums with a limit (deviation) |
 | T014 | 3 | Per-medium cap tokens_per_run | T002 T011 | sonnet | done | tokens_per_run meter in add/batch; batch stage order now per-entry |
-| T015 | 4 | Collide pair selection | T001 | sonnet | todo | |
+| T015 | 4 | Collide pair selection | T001 | sonnet | done | synth/collide.go Pool/Select/ExistingPairs + test |
 | T016 | 4 | collide command and proposals | T007 T015 | opus | todo | |
 | T017 | 4 | keep command | T000 | sonnet | todo | |
 | T018 | 5 | gitops pull, push, behind | T003 | opus | todo | |
