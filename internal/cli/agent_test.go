@@ -102,6 +102,7 @@ func TestSchemaAllCommands(t *testing.T) {
 		"unlink":         {t1id, t3},
 		"lint":           nil,
 		"list":           nil,
+		"review":         nil,
 		"search":         {"sleep"},
 		"skill":          nil,
 		"source facts":   {src},
