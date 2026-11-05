@@ -4,11 +4,14 @@ package gitops
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/0x6c6d/slowhunch/internal/errs"
 )
@@ -181,4 +184,206 @@ func (r *Repo) Commit(paths []string, subject, body string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+// netTimeout bounds every network-touching git call (pull, push).
+const netTimeout = 120 * time.Second
+
+// firstLine returns the first non-empty trimmed line of s.
+func firstLine(s string) string {
+	for _, l := range strings.Split(s, "\n") {
+		if l = strings.TrimSpace(l); l != "" {
+			return l
+		}
+	}
+	return ""
+}
+
+// runNet executes git -C dir <args...> with GIT_TERMINAL_PROMPT=0 and a
+// timeout, so it never waits for credentials. On failure it returns the
+// first stderr line (or the process error) as msg and a non-nil err.
+func runNet(dir string, args ...string) (msg string, err error) {
+	if !Available() {
+		return "", missing()
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), netTimeout)
+	defer cancel()
+	argv := append([]string{"-C", dir}, args...)
+	cmd := exec.CommandContext(ctx, "git", argv...)
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	var stderr bytes.Buffer
+	cmd.Stdout = &bytes.Buffer{}
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		line := firstLine(stderr.String())
+		if ctx.Err() != nil {
+			line = "git timed out after " + netTimeout.String()
+		}
+		if line == "" {
+			line = err.Error()
+		}
+		return line, err
+	}
+	return "", nil
+}
+
+// HasRemote reports whether a remote called name is configured.
+func (r *Repo) HasRemote(name string) (bool, error) {
+	out, err := run(r.Dir, "remote", "remote")
+	if err != nil {
+		return false, err
+	}
+	for _, l := range strings.Split(string(out), "\n") {
+		if strings.TrimSpace(l) == name && name != "" {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// CurrentBranch returns the short name of the checked-out branch.
+func (r *Repo) CurrentBranch() (string, error) {
+	out, err := run(r.Dir, "symbolic-ref", "symbolic-ref", "--short", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// HasUpstream reports whether the current branch has an upstream.
+func (r *Repo) HasUpstream() (bool, error) {
+	if !Available() {
+		return false, missing()
+	}
+	out, err := run(r.Dir, "rev-parse", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+	if err != nil {
+		return false, nil
+	}
+	return strings.TrimSpace(string(out)) != "", nil
+}
+
+// Head returns the full hash of HEAD.
+func (r *Repo) Head() (string, error) {
+	out, err := run(r.Dir, "rev-parse", "rev-parse", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func (r *Repo) porcelain() (string, error) {
+	out, err := run(r.Dir, "status", "status", "--porcelain")
+	return string(out), err
+}
+
+func (r *Repo) count(rng string) (int, error) {
+	out, err := run(r.Dir, "rev-list", "rev-list", "--count", rng)
+	if err != nil {
+		return 0, err
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil {
+		return 0, errs.Fatal(errs.BadInput, "git rev-list: unexpected output", "")
+	}
+	return n, nil
+}
+
+// PullRebase runs git pull --rebase --autostash and returns how many new
+// commits arrived (commits now in HEAD's history that the old HEAD lacked,
+// not counting local commits replayed on top). It never creates a merge commit and never resolves a
+// conflict: on conflict it aborts the rebase and checks HEAD and the work
+// tree are back to where they were.
+func (r *Repo) PullRebase() (pulled int, err error) {
+	if !Available() {
+		return 0, missing()
+	}
+	oldHead, err := r.Head()
+	if err != nil {
+		return 0, err
+	}
+	oldStatus, err := r.porcelain()
+	if err != nil {
+		return 0, err
+	}
+	args := append(r.identity(), "pull", "--rebase", "--autostash", "-q")
+	msg, perr := runNet(r.Dir, args...)
+	if perr != nil {
+		if e, ok := perr.(*errs.Error); ok {
+			return 0, e
+		}
+		out, _ := run(r.Dir, "diff", "diff", "--name-only", "--diff-filter=U")
+		var files []string
+		for _, l := range strings.Split(string(out), "\n") {
+			if l = strings.TrimSpace(l); l != "" {
+				files = append(files, l)
+			}
+		}
+		if len(files) == 0 {
+			return 0, errs.New(errs.PullFailed, msg, "check git.remote and your network")
+		}
+		sort.Strings(files)
+		text := "pull conflicts in " + strings.Join(files, ", ")
+		_, aerr := run(r.Dir, "rebase", append(r.identity(), "rebase", "--abort")...)
+		head, herr := r.Head()
+		status, serr := r.porcelain()
+		switch {
+		case aerr != nil:
+			text += "; rebase --abort failed (" + aerr.Error() + "), the work tree may not be restored"
+		case herr != nil || serr != nil || head != oldHead || status != oldStatus:
+			text += "; could not restore HEAD and the work tree to their state before the pull"
+		}
+		e := errs.New(errs.Conflict, text, "resolve the conflict with git yourself, then run again")
+		e.Extra = map[string]any{"paths": files}
+		return 0, e
+	}
+	newHead, err := r.Head()
+	if err != nil {
+		return 0, err
+	}
+	if newHead == oldHead {
+		return 0, nil
+	}
+	// Local commits replayed by the rebase get new hashes, so count the
+	// upstream commits the old HEAD lacked; old..new only without upstream.
+	if ok, _ := r.HasUpstream(); ok {
+		return r.count(oldHead + "..@{u}")
+	}
+	return r.count(oldHead + ".." + newHead)
+}
+
+// validRef rejects empty names and names that git could read as an
+// option or a force refspec.
+func validRef(kind, v string) error {
+	if v == "" || strings.HasPrefix(v, "-") || strings.HasPrefix(v, "+") {
+		return errs.New(errs.BadInput, "invalid push "+kind+" "+strconv.Quote(v), "use a plain remote and branch name")
+	}
+	return nil
+}
+
+// Push runs exactly git push <remote> <branch>.
+func (r *Repo) Push(remote, branch string) error {
+	if err := validRef("remote", remote); err != nil {
+		return err
+	}
+	if err := validRef("branch", branch); err != nil {
+		return err
+	}
+	msg, err := runNet(r.Dir, "push", remote, branch)
+	if err != nil {
+		if e, ok := err.(*errs.Error); ok {
+			return e
+		}
+		return errs.New(errs.PushFailed, msg, "the commit is kept; the next run that pushes sends it")
+	}
+	return nil
+}
+
+// Behind returns how many upstream commits HEAD lacks (as of the last
+// fetch); 0 when the branch has no upstream.
+func (r *Repo) Behind() (int, error) {
+	ok, err := r.HasUpstream()
+	if err != nil || !ok {
+		return 0, err
+	}
+	return r.count("HEAD..@{u}")
 }

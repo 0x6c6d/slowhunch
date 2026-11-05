@@ -200,3 +200,218 @@ func TestGitMissing(t *testing.T) {
 		t.Fatalf("exit code %d", errs.ExitCode(err))
 	}
 }
+
+// isolateGit makes every git call in the test ignore user and system config.
+func isolateGit(t *testing.T) {
+	t.Helper()
+	needGit(t)
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	t.Setenv("GIT_AUTHOR_NAME", "t")
+	t.Setenv("GIT_AUTHOR_EMAIL", "t@t")
+	t.Setenv("GIT_COMMITTER_NAME", "t")
+	t.Setenv("GIT_COMMITTER_EMAIL", "t@t")
+	t.Setenv("GIT_TERMINAL_PROMPT", "0")
+}
+
+// remoteSetup creates a bare origin with one commit on main and two
+// clones a and b tracking origin/main.
+func remoteSetup(t *testing.T) (origin, a, b string) {
+	t.Helper()
+	isolateGit(t)
+	root := t.TempDir()
+	origin = filepath.Join(root, "origin.git")
+	seed := filepath.Join(root, "seed")
+	a = filepath.Join(root, "a")
+	b = filepath.Join(root, "b")
+	git(t, root, "init", "-q", "--bare", "-b", "main", origin)
+	git(t, root, "init", "-q", "-b", "main", seed)
+	write(t, seed, "base.md", "base\n")
+	git(t, seed, "add", "base.md")
+	git(t, seed, "commit", "-q", "-m", "base")
+	git(t, seed, "remote", "add", "origin", origin)
+	git(t, seed, "push", "-q", "origin", "main")
+	git(t, root, "clone", "-q", origin, a)
+	git(t, root, "clone", "-q", origin, b)
+	return origin, a, b
+}
+
+func commitFile(t *testing.T, dir, name, body, msg string) {
+	t.Helper()
+	write(t, dir, name, body)
+	git(t, dir, "add", "--", name)
+	git(t, dir, "commit", "-q", "-m", msg)
+}
+
+func TestPullRebase(t *testing.T) {
+	_, a, b := remoteSetup(t)
+	commitFile(t, a, "a1.md", "one\n", "a1")
+	commitFile(t, a, "a2.md", "two\n", "a2")
+	git(t, a, "push", "-q", "origin", "main")
+
+	commitFile(t, b, "b1.md", "local\n", "b1")
+	write(t, b, "base.md", "base\nuncommitted\n")
+	rb := New(b)
+	ok, err := rb.HasRemote("origin")
+	if err != nil || !ok {
+		t.Fatalf("HasRemote origin = %v, %v", ok, err)
+	}
+	if ok, _ := rb.HasRemote("nope"); ok {
+		t.Fatal("HasRemote nope true")
+	}
+	if br, err := rb.CurrentBranch(); err != nil || br != "main" {
+		t.Fatalf("CurrentBranch = %q, %v", br, err)
+	}
+	if ok, err := rb.HasUpstream(); err != nil || !ok {
+		t.Fatalf("HasUpstream = %v, %v", ok, err)
+	}
+	pulled, err := rb.PullRebase()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pulled != 2 {
+		t.Fatalf("pulled = %d, want 2", pulled)
+	}
+	if merges := strings.TrimSpace(git(t, b, "rev-list", "--merges", "--count", "HEAD")); merges != "0" {
+		t.Fatalf("merge commits = %s", merges)
+	}
+	log := strings.Fields(git(t, b, "log", "--format=%s"))
+	if want := []string{"b1", "a2", "a1", "base"}; !reflect.DeepEqual(log, want) {
+		t.Fatalf("history = %v, want %v", log, want)
+	}
+	got, err := os.ReadFile(filepath.Join(b, "base.md"))
+	if err != nil || string(got) != "base\nuncommitted\n" {
+		t.Fatalf("autostashed change lost: %q, %v", got, err)
+	}
+	if st := git(t, b, "stash", "list"); strings.TrimSpace(st) != "" {
+		t.Fatalf("stash left behind: %s", st)
+	}
+	if n, err := rb.PullRebase(); err != nil || n != 0 {
+		t.Fatalf("second pull = %d, %v", n, err)
+	}
+
+	// A fresh local branch without upstream: callers check HasUpstream.
+	git(t, b, "checkout", "-q", "-b", "solo")
+	if ok, err := rb.HasUpstream(); err != nil || ok {
+		t.Fatalf("HasUpstream on solo = %v, %v", ok, err)
+	}
+}
+
+func TestPushPlain(t *testing.T) {
+	origin, a, _ := remoteSetup(t)
+	commitFile(t, a, "p.md", "p\n", "p")
+	ra := New(a)
+	head, err := ra.Head()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ra.Push("origin", "main"); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(git(t, origin, "rev-parse", "main")); got != head {
+		t.Fatalf("origin main = %s, want %s", got, head)
+	}
+	for _, c := range [][2]string{{"-x", "main"}, {"origin", "-x"}, {"", "main"}, {"origin", ""}, {"origin", "+main"}, {"+origin", "main"}} {
+		if err := ra.Push(c[0], c[1]); errs.CodeOf(err) != errs.BadInput {
+			t.Fatalf("Push(%q, %q) err = %v, want BAD_INPUT", c[0], c[1], err)
+		}
+	}
+}
+
+func TestPushFailed(t *testing.T) {
+	_, a, b := remoteSetup(t)
+	commitFile(t, a, "a.md", "a\n", "a")
+	git(t, a, "push", "-q", "origin", "main")
+	commitFile(t, b, "b.md", "b\n", "b")
+	rb := New(b)
+	head, _ := rb.Head()
+	err := rb.Push("origin", "main")
+	if errs.CodeOf(err) != errs.PushFailed {
+		t.Fatalf("err = %v, want PUSH_FAILED", err)
+	}
+	if errs.ExitCode(err) != 1 {
+		t.Fatalf("exit code %d", errs.ExitCode(err))
+	}
+	if now, _ := rb.Head(); now != head {
+		t.Fatal("commit not kept")
+	}
+	if err := New(b).Push("nosuchremote", "main"); errs.CodeOf(err) != errs.PushFailed {
+		t.Fatalf("missing remote err = %v", err)
+	}
+}
+
+func TestBehindCount(t *testing.T) {
+	_, a, b := remoteSetup(t)
+	commitFile(t, a, "a.md", "a\n", "a")
+	git(t, a, "push", "-q", "origin", "main")
+	rb := New(b)
+	if n, err := rb.Behind(); err != nil || n != 0 {
+		t.Fatalf("Behind before fetch = %d, %v", n, err)
+	}
+	git(t, b, "fetch", "-q", "origin")
+	if n, err := rb.Behind(); err != nil || n != 1 {
+		t.Fatalf("Behind = %d, %v, want 1", n, err)
+	}
+	git(t, b, "checkout", "-q", "-b", "solo")
+	if n, err := rb.Behind(); err != nil || n != 0 {
+		t.Fatalf("Behind without upstream = %d, %v", n, err)
+	}
+}
+
+func TestRebaseConflictAborts(t *testing.T) {
+	_, a, b := remoteSetup(t)
+	commitFile(t, a, "base.md", "from a\n", "a edit")
+	git(t, a, "push", "-q", "origin", "main")
+	commitFile(t, b, "base.md", "from b\n", "b edit")
+	write(t, b, "untracked.md", "keep\n")
+	rb := New(b)
+	head, _ := rb.Head()
+	status := git(t, b, "status", "--porcelain")
+
+	_, err := rb.PullRebase()
+	if errs.CodeOf(err) != errs.Conflict {
+		t.Fatalf("err = %v, want CONFLICT", err)
+	}
+	if errs.ExitCode(err) != 4 {
+		t.Fatalf("exit code %d", errs.ExitCode(err))
+	}
+	e := err.(*errs.Error)
+	if !strings.Contains(e.Message, "base.md") || strings.Contains(e.Message, "restore") {
+		t.Fatalf("message = %q", e.Message)
+	}
+	if paths, _ := e.Extra["paths"].([]string); !reflect.DeepEqual(paths, []string{"base.md"}) {
+		t.Fatalf("paths = %v", e.Extra["paths"])
+	}
+	gitDir := strings.TrimSpace(git(t, b, "rev-parse", "--absolute-git-dir"))
+	for _, d := range []string{"rebase-merge", "rebase-apply"} {
+		if _, err := os.Stat(filepath.Join(gitDir, d)); err == nil {
+			t.Fatalf("rebase still in progress (%s)", d)
+		}
+	}
+	if now, _ := rb.Head(); now != head {
+		t.Fatal("HEAD moved")
+	}
+	if now := git(t, b, "status", "--porcelain"); now != status {
+		t.Fatalf("status = %q, want %q", now, status)
+	}
+	if got, _ := os.ReadFile(filepath.Join(b, "base.md")); string(got) != "from b\n" {
+		t.Fatalf("base.md = %q", got)
+	}
+}
+
+func TestPullFailedUnreachable(t *testing.T) {
+	_, _, b := remoteSetup(t)
+	git(t, b, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "missing.git"))
+	rb := New(b)
+	head, _ := rb.Head()
+	_, err := rb.PullRebase()
+	if errs.CodeOf(err) != errs.PullFailed {
+		t.Fatalf("err = %v, want PULL_FAILED", err)
+	}
+	if e := err.(*errs.Error); e.Message == "" || e.Hint != "check git.remote and your network" {
+		t.Fatalf("error = %+v", e)
+	}
+	if now, _ := rb.Head(); now != head {
+		t.Fatal("HEAD moved")
+	}
+}
