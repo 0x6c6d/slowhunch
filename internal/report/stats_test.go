@@ -70,3 +70,32 @@ func TestStatsCompute(t *testing.T) {
 		t.Fatalf("%+v", s2)
 	}
 }
+
+func TestStatsCollide(t *testing.T) {
+	ix := statsIndex(t, map[string]string{"a": "stance: asserts\nsource: s1\n"})
+	empty := Compute(ix, nil)
+	for _, role := range []string{"gate", "extract", "place", "collide"} {
+		if u, ok := empty.TokensByRole[role]; !ok || u != (Usage{}) {
+			t.Fatalf("role %s: %v %v", role, u, ok)
+		}
+	}
+	if len(empty.TokensByRole) != 4 {
+		t.Fatalf("%v", empty.TokensByRole)
+	}
+	r1, r2 := New("r1"), New("r2")
+	r1.AddCost("collide", Usage{TokensIn: 10, TokensOut: 2})
+	r2.AddCost("collide", Usage{TokensIn: 5, TokensOut: 1})
+	r2.AddCost("legacy", Usage{TokensIn: 7, TokensOut: 8})
+	s := Compute(ix, []*Report{r1, r2})
+	if s.TokensByRole["collide"] != (Usage{15, 3}) {
+		t.Fatalf("collide %v", s.TokensByRole["collide"])
+	}
+	for _, role := range []string{"gate", "extract", "place"} {
+		if s.TokensByRole[role] != (Usage{}) {
+			t.Fatalf("role %s: %v", role, s.TokensByRole[role])
+		}
+	}
+	if s.TokensByRole["legacy"] != (Usage{7, 8}) {
+		t.Fatalf("legacy %v", s.TokensByRole["legacy"])
+	}
+}

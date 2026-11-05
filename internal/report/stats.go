@@ -19,6 +19,9 @@ type Stats struct {
 	Hunches           int              `json:"hunches"`
 }
 
+// statsRoles are the provider roles that always appear in TokensByRole, even at zero.
+var statsRoles = []string{"gate", "extract", "place", "collide"}
+
 // Compute aggregates the index and reports into Stats; all maps are non-nil.
 func Compute(ix *vault.Index, reports []*Report) Stats {
 	s := Stats{
@@ -26,6 +29,9 @@ func Compute(ix *vault.Index, reports []*Report) Stats {
 		AtomsByStance:  map[string]int{},
 		HunchesByState: map[string]int{},
 		TokensByRole:   map[string]Usage{},
+	}
+	for _, role := range statsRoles {
+		s.TokensByRole[role] = Usage{}
 	}
 	for _, e := range ix.OfType("note") {
 		s.Atoms++

@@ -37,7 +37,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T005 | 1 | review command | T004 | sonnet | done | cmd_review.go + test; agent_test.go schema map adapted |
 | T006 | 2 | collide role and embedded prompt | T000 | sonnet | done | collide role, prompt, init test, fakeModel |
 | T007 | 2 | Provider resolution by role and medium | T001 T006 | sonnet | done | Effective/ForRole by medium, Deps.ProviderFor+AuthorFor |
-| T008 | 2 | stats tokens for every role | T006 | haiku | todo | |
+| T008 | 2 | stats tokens for every role | T006 | haiku | done | stats.go + test; collide tokens row |
 | T009 | 3 | Exported scrubbed-env argv runner | T000 | opus | todo | |
 | T010 | 3 | PDF intake via pdf.command | T001 T009 | opus | todo | |
 | T011 | 3 | Batch add --from | T007 T010 | opus | todo | |
