@@ -305,6 +305,8 @@ func (v *Vault) Audit(e AuditEntry) error {
 type State struct {
 	PromptVersions map[string]string `json:"prompt_versions"`
 	Pending        []string          `json:"pending"`
+	// RunsByDay counts runs by date (YYYY-MM-DD) and medium.
+	RunsByDay map[string]map[string]int `json:"runs_by_day,omitempty"`
 }
 
 // LoadState reads .slowhunch/state.json; a missing file yields a zero State.

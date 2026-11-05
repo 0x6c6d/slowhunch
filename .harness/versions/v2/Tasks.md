@@ -29,8 +29,8 @@ The supervisor prepends these, verbatim, to every worker brief:
 
 | ID | Phase | Title | Depends-on | Model | Status | Notes |
 |----|-------|-------|------------|-------|--------|-------|
-| T000 | 0 | Preflight | — | supervisor | todo | |
-| T001 | 1 | Config v2 keys, defaults and validation | T000 | sonnet | todo | |
+| T000 | 0 | Preflight | — | supervisor | done | preflight ok |
+| T001 | 1 | Config v2 keys, defaults and validation | T000 | sonnet | done | config.go, store.go, config_test.go; v2 config keys + validation |
 | T002 | 1 | Error codes v2 | T000 | haiku | todo | |
 | T003 | 1 | Git policy tests: force and rewrite ban | T000 | opus | todo | |
 | T004 | 1 | Review queries in internal/synth | T001 | sonnet | todo | |
