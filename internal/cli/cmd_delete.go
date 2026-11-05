@@ -25,7 +25,7 @@ func cmdDelete(env *Env, args []string) (any, error) {
 		return nil, errs.New(errs.BadInput, "hard delete needs --yes", usage)
 	}
 
-	v, cfg, err := env.openVault()
+	v, cfg, err := env.openRun()
 	if err != nil {
 		return nil, err
 	}

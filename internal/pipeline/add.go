@@ -44,6 +44,22 @@ type Options struct {
 
 	// PDFCommand is pdf.command from config; empty leaves .pdf files UNSUPPORTED.
 	PDFCommand []string
+
+	// Pulled is the number of commits the caller pulled before the run; it
+	// goes into git.pulled of every report. Warnings (e.g. PULL_FAILED) are
+	// appended to the errors of every report.
+	Pulled   int
+	Warnings []report.ItemError
+}
+
+// stamp records the run-wide pull outcome of o on rep.
+func (o Options) stamp(rep *report.Report) *report.Report {
+	if rep == nil {
+		return rep
+	}
+	rep.Git.Pulled = o.Pulled
+	rep.Errors = append(rep.Errors, o.Warnings...)
+	return rep
 }
 
 var docFolders = []string{"notes", "sources", "hunches", "proposals", "topics"}
@@ -480,7 +496,7 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 		return nil, err
 	}
 	if r.done {
-		return r.rep, nil
+		return o.stamp(r.rep), nil
 	}
 	if err := checkCaps(d, []*itemRun{r}); err != nil {
 		return nil, err
@@ -496,14 +512,14 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 		recordWildcard(r, r.it.SourceID, kept[0])
 	}
 	if r.done {
-		return r.rep, countRuns(d, nil, o.DryRun, runs)
+		return o.stamp(r.rep), countRuns(d, nil, o.DryRun, runs)
 	}
 	ap, err := extractPlace(ctx, d, r, ix, map[string]bool{})
 	if err != nil {
 		return nil, err
 	}
 	if ap == nil {
-		return r.rep, countRuns(d, nil, o.DryRun, runs)
+		return o.stamp(r.rep), countRuns(d, nil, o.DryRun, runs)
 	}
 	rep := r.rep
 
@@ -526,6 +542,7 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 		return nil, err
 	}
 	rep.Git = gitInfo(d, o.DryRun, r.noCommit, hash)
+	o.stamp(rep)
 	if !o.DryRun {
 		if err := rep.Save(d.Vault); err != nil {
 			return nil, err

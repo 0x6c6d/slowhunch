@@ -62,6 +62,18 @@ func fakeModel() {
 		}
 	case "place":
 		text = `{"verdict": "new", "target": "", "reason": "fake"}`
+		// place-log=<file>: append every place request's user text to file.
+		for _, a := range os.Args {
+			if path, ok := strings.CutPrefix(a, "place-log="); ok {
+				f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					os.Exit(1)
+				}
+				fmt.Fprintln(f, req.User)
+				f.Close()
+			}
+		}
 	default:
 		lines := strings.Split(req.User, "\n")
 		in := false

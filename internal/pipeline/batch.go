@@ -286,11 +286,13 @@ func AddBatch(ctx context.Context, d Deps, from string, o Options) (*BatchResult
 	} else {
 		res.Git = report.GitInfo{Skipped: "nothing-written"}
 	}
+	res.Git.Pulled = o.Pulled
 
 	var firstErr error
 	nWritten, nFailed := 0, 0
 	for i, e := range entries {
 		rep, ferr := st.entryReport(i, res.Git)
+		rep.Git.Pulled = o.Pulled
 		if ferr != nil {
 			code, msg := provErr(ferr)
 			res.Errors = append(res.Errors, report.ItemError{Item: e.Label(), Code: code, Reason: msg})
@@ -317,6 +319,7 @@ func AddBatch(ctx context.Context, d Deps, from string, o Options) (*BatchResult
 			}
 		}
 	}
+	res.Errors = append(res.Errors, o.Warnings...)
 	res.Counts["entries"] = len(entries)
 	res.Counts["written"] = nWritten
 	res.Counts["failed"] = nFailed

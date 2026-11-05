@@ -81,6 +81,7 @@ type ItemError struct {
 type GitInfo struct {
 	Commit  string `json:"commit"`
 	Skipped string `json:"skipped,omitempty"`
+	Pulled  int    `json:"pulled"`
 }
 
 type Report struct {

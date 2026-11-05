@@ -47,7 +47,7 @@ func cmdKeep(env *Env, args []string) (any, error) {
 	if len(ids) == 0 {
 		return nil, errs.New(errs.BadInput, "keep needs --ids", usage)
 	}
-	v, cfg, err := env.openVault()
+	v, cfg, err := env.openRun()
 	if err != nil {
 		return nil, err
 	}

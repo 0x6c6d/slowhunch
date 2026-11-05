@@ -76,7 +76,7 @@ func cmdUpdate(env *Env, args []string) (any, error) {
 		}
 	}
 
-	v, cfg, err := env.openVault()
+	v, cfg, err := env.openRun()
 	if err != nil {
 		return nil, err
 	}

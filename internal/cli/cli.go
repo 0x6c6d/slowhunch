@@ -24,8 +24,11 @@ type Env struct {
 	Stdin                  io.Reader
 	Stdout, Stderr         io.Writer
 	JSON, DryRun, NoCommit bool
+	NoPull                 bool // --no-pull: vault-changing commands skip the pull
 	VaultFlag              string
 	Now                    func() time.Time
+
+	prep *runPrep // set by prepareRun
 }
 
 // Handler runs a command and returns a result to render.
@@ -116,6 +119,8 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			env.DryRun = true
 		case a == "--no-commit":
 			env.NoCommit = true
+		case a == "--no-pull":
+			env.NoPull = true
 		case a == "--vault":
 			if i+1 >= len(args) {
 				return fail(env, errs.New(errs.BadInput, "--vault needs a directory", "usage: --vault <dir>"), true)
@@ -155,6 +160,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if err != nil {
 		return fail(env, err, false)
 	}
+	res = env.prep.decorate(res)
 	if err := printResult(env, res); err != nil {
 		return fail(env, err, false)
 	}
@@ -168,7 +174,7 @@ func helpText() string {
 	}
 	sort.Strings(names)
 	var b strings.Builder
-	b.WriteString("usage: slowhunch [--json] [--dry-run] [--no-commit] [--vault <dir>] <command> [args]\n\ncommands:\n")
+	b.WriteString("usage: slowhunch [--json] [--dry-run] [--no-commit] [--no-pull] [--vault <dir>] <command> [args]\n\ncommands:\n")
 	for _, n := range names {
 		fmt.Fprintf(&b, "  %-20s %s\n", n, commands[n].summary)
 	}
@@ -258,7 +264,7 @@ func fail(env *Env, err error, usage bool) int {
 		fmt.Fprintf(env.Stderr, "hint: %s\n", e.Hint)
 	}
 	if usage {
-		fmt.Fprint(env.Stderr, "usage: slowhunch [--json] [--dry-run] [--no-commit] [--vault <dir>] <command> [args]\n")
+		fmt.Fprint(env.Stderr, "usage: slowhunch [--json] [--dry-run] [--no-commit] [--no-pull] [--vault <dir>] <command> [args]\n")
 	}
 	return code
 }

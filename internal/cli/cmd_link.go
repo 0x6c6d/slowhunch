@@ -26,7 +26,7 @@ func cmdLink(env *Env, args []string) (any, error) {
 	if from == to {
 		return nil, badInput("cannot link an entry to itself")
 	}
-	v, cfg, err := env.openVault()
+	v, cfg, err := env.openRun()
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func cmdUnlink(env *Env, args []string) (any, error) {
 		return nil, errs.New(errs.BadInput, "unlink needs <from> and <to>", "usage: slowhunch unlink <from> <to>")
 	}
 	from, to := pos[0], pos[1]
-	v, cfg, err := env.openVault()
+	v, cfg, err := env.openRun()
 	if err != nil {
 		return nil, err
 	}

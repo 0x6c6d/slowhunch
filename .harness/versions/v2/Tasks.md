@@ -48,7 +48,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T016 | 4 | collide command and proposals | T007 T015 | opus | done | cmd_collide.go, synth/propose.go, report.Collision, tests |
 | T017 | 4 | keep command | T000 | sonnet | done | cmd_keep.go + tests; update shares commitDoc |
 | T018 | 5 | gitops pull, push, behind | T003 | opus | done | gitops pull/push/behind + tests; pulled = old..@{u} when upstream (deviation, correct with local commits) |
-| T019 | 5 | Pull before write in the run wrapper | T001 T002 T018 | opus | todo | |
+| T019 | 5 | Pull before write in the run wrapper | T001 T002 T018 | opus | done | cli/sync.go prepareRun, --no-pull, git.pulled; no extra pre-pull dirty check (autostash covers it) |
 | T020 | 5 | Push after commit | T019 | opus | todo | |
 | T021 | 5 | sync command, --sync and dry-run BEHIND | T020 | opus | todo | |
 | T022 | 6 | skill guide v2 | T005 T011 T016 T017 T021 | haiku | todo | |

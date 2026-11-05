@@ -58,7 +58,7 @@ func cmdAdd(env *Env, args []string) (any, error) {
 	} else if len(pos) != 1 {
 		return nil, errs.New(errs.BadInput, "add needs exactly one text, file or -", "usage: slowhunch add <text|file|-> [--as M] [--title T] [-force]")
 	}
-	v, cfg, err := env.openVault()
+	v, cfg, err := env.openRun()
 	if err != nil {
 		return nil, err
 	}
@@ -109,6 +109,7 @@ func cmdAdd(env *Env, args []string) (any, error) {
 		Arg: arg, Stdin: env.Stdin, Medium: *as, URL: *url, Title: *title, Author: *author,
 		Note: *note, Hunch: *hunch, Force: *force, DryRun: env.DryRun, NoCommit: env.NoCommit,
 		PDFCommand: cfg.PDF.Command,
+		Pulled:     env.prep.pulled(), Warnings: env.prep.itemErrors(),
 	}
 	if batch {
 		res, err := pipeline.AddBatch(context.Background(), d, *from, o)

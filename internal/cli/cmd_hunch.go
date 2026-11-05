@@ -34,7 +34,7 @@ func cmdHunchAdd(env *Env, args []string) (any, error) {
 		return nil, errs.New(errs.BadInput, "hunch add needs a non-empty question", usage)
 	}
 	question := strings.TrimSpace(pos[0])
-	v, cfg, err := env.openVault()
+	v, cfg, err := env.openRun()
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func cmdHunchEvidence(env *Env, args []string) (any, error) {
 	if *relation != "supports" && *relation != "weakens" {
 		return nil, errs.New(errs.BadInput, fmt.Sprintf("bad relation %q", *relation), "one of: supports weakens")
 	}
-	v, cfg, err := env.openVault()
+	v, cfg, err := env.openRun()
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +177,7 @@ func cmdHunchState(env *Env, args []string) (any, error) {
 	if !slices.Contains(vault.HunchStates, pos[1]) {
 		return nil, errs.New(errs.BadInput, fmt.Sprintf("unknown state %q", pos[1]), "one of: "+strings.Join(vault.HunchStates, " "))
 	}
-	v, cfg, err := env.openVault()
+	v, cfg, err := env.openRun()
 	if err != nil {
 		return nil, err
 	}

@@ -80,6 +80,11 @@ func cmdCollide(env *Env, args []string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	if !dryRun {
+		if _, err := env.prepareRun(v, cfg); err != nil {
+			return nil, err
+		}
+	}
 	ix, _, err := v.LoadIndex()
 	if err != nil {
 		return nil, err
@@ -195,9 +200,10 @@ func cmdCollide(env *Env, args []string) (any, error) {
 			Items: []string{report.Link(p.A), report.Link(p.B)}, Proposal: report.Link(id)})
 	}
 	counts["errors"] = len(rep.Errors)
+	rep.Errors = append(rep.Errors, env.prep.itemErrors()...)
 
 	if len(writes) == 0 {
-		rep.Git = report.GitInfo{Skipped: "nothing-kept"}
+		rep.Git = report.GitInfo{Skipped: "nothing-kept", Pulled: env.prep.pulled()}
 		return collideResult{rep, sel.Capped}, nil
 	}
 	o := vault.TxnOptions{RunID: rep.RunID, Now: env.Now}
@@ -237,6 +243,7 @@ func cmdCollide(env *Env, args []string) (any, error) {
 	default:
 		rep.Git = report.GitInfo{Commit: hash}
 	}
+	rep.Git.Pulled = env.prep.pulled()
 	if err := rep.Save(v); err != nil {
 		return nil, err
 	}
