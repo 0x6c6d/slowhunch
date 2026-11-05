@@ -93,3 +93,18 @@ func TestReadmeQuickstart(t *testing.T) {
 		t.Fatalf("sources missing: poem=%v article=%v", poem, article)
 	}
 }
+
+func TestReadmeV2Mentions(t *testing.T) {
+	data, err := os.ReadFile("../../README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	readme := string(data)
+	for _, k := range []string{"slowhunch collide", "slowhunch review", "slowhunch keep", "--from",
+		"slowhunch sync", "pdf.command", "media", "caps.by_medium", "git.pull", "git.push",
+		"git.require_pull", "collide.max_cosine", "review.stale_days", "place.wildcard_share"} {
+		if !strings.Contains(readme, k) {
+			t.Errorf("README lacks %q", k)
+		}
+	}
+}
