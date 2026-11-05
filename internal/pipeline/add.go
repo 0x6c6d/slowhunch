@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/0x6c6d/slowhunch/internal/errs"
-	"github.com/0x6c6d/slowhunch/internal/frontmatter"
 	"github.com/0x6c6d/slowhunch/internal/intake"
 	"github.com/0x6c6d/slowhunch/internal/provider"
 	"github.com/0x6c6d/slowhunch/internal/report"
@@ -200,9 +199,10 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 			nDropped++
 			continue
 		}
-		switch dec.Action {
-		case "duplicate", "contradicts":
-			dec.Action = "extends"
+		if dec.Action == "duplicate" {
+			// No new note: the target gets a corroboration line.
+			plan = append(plan, placed{Atom: a, Decision: dec})
+			continue
 		}
 		id := vault.UniqueID(vault.AtomID(a.Stance, sid, a.Locator, a.Claim), func(c string) bool {
 			if taken[c] {
@@ -233,21 +233,14 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 		return rep, nil
 	}
 
-	// 7. Writes.
+	// 7. Outcomes, assembled in memory before anything is written.
 	today := now().Format("2006-01-02")
-	srcDoc := sourceDoc(it, writer, today, textHash, plan)
-	if err := vault.Validate(srcDoc, sid); err != nil {
+	ap, err := applyOutcomes(ix, plan, it, writer, today, textHash, d.Config.Place, rep)
+	if err != nil {
 		return nil, err
 	}
-	noteDocs := make([]*frontmatter.Doc, len(plan))
-	for i, p := range plan {
-		nd := noteDoc(p, it, writer, today)
-		if err := vault.Validate(nd, p.ID); err != nil {
-			return nil, err
-		}
-		noteDocs[i] = nd
-	}
 
+	// 8. Writes: every path is touched before the first write.
 	noCommit := o.NoCommit || !d.Config.Git.Commit
 	txn, err := d.Vault.Begin("add", vault.TxnOptions{
 		RunID:          rep.RunID,
@@ -261,8 +254,11 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 		return nil, err
 	}
 	paths := []string{inboxPath(sid), sourcePath(sid)}
-	for _, p := range plan {
-		paths = append(paths, notePath(p.ID))
+	for _, id := range ap.newIDs {
+		paths = append(paths, notePath(id))
+	}
+	for _, m := range ap.mods {
+		paths = append(paths, m.path)
 	}
 	if err := txn.Touch(paths...); err != nil {
 		return nil, err
@@ -270,30 +266,32 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 	if err := txn.WriteFile(inboxPath(sid), stored); err != nil {
 		return nil, err
 	}
-	if _, err := txn.PutDoc(sourcePath(sid), srcDoc, ""); err != nil {
+	if _, err := txn.PutDoc(sourcePath(sid), ap.source, ""); err != nil {
 		return nil, err
 	}
-	for i, p := range plan {
-		if _, err := txn.PutDoc(notePath(p.ID), noteDocs[i], ""); err != nil {
+	for _, id := range ap.newIDs {
+		if _, err := txn.PutDoc(notePath(id), ap.notes[id], ""); err != nil {
+			return nil, err
+		}
+	}
+	for _, m := range ap.mods {
+		if _, err := txn.PutDoc(m.path, m.doc, m.rev); err != nil {
 			return nil, err
 		}
 	}
 
-	// 8. Report.
 	ids := []string{sid}
 	planned := map[string]bool{sid: true}
-	for _, p := range plan {
-		ref := report.AtomRef{ID: report.Link(p.ID), Claim: p.Atom.Claim, Stance: p.Atom.Stance, Locator: p.Atom.Locator, Action: p.Decision.Action}
-		if p.Decision.Target != "" && p.Decision.Action != "new" {
-			ref.Target = report.Link(p.Decision.Target)
-		}
-		rep.Atoms = append(rep.Atoms, ref)
-		ids = append(ids, p.ID)
-		planned[p.ID] = true
+	for _, id := range ap.newIDs {
+		ids = append(ids, id)
+		planned[id] = true
+	}
+	for _, m := range ap.mods {
+		ids = append(ids, m.id)
 	}
 
 	// 9. Commit and save.
-	hash, err := txn.Commit(ids, fmt.Sprintf("atoms: %d", len(plan)))
+	hash, err := txn.Commit(ids, fmt.Sprintf("atoms: %d", len(ap.newIDs)))
 	if err != nil {
 		return nil, err
 	}
