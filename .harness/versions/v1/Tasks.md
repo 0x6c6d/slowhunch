@@ -48,7 +48,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T023 | 4 | lint checks and command | T011, T013 | sonnet | done | vault/lint.go, cmd_lint.go + tests |
 | T024 | 4 | verify checks and command | T023, T014 | sonnet | done | vault/verify.go, cmd_verify.go + tests |
 | T025 | 4 | Run report type, key order, save and load | T008 | sonnet | done | internal/report + tests |
-| T026 | 4 | stats aggregation and command | T025, T011, T013 | sonnet | todo | |
+| T026 | 4 | stats aggregation and command | T025, T011, T013 | sonnet | done | report/stats.go, cmd_stats.go + tests |
 | T027 | 5 | Provider interface, registry, fake, JSON call with repair | T012, T003 | opus | todo | |
 | T028 | 5 | openai-compatible provider | T027 | opus | todo | |
 | T029 | 5 | exec provider with scrubbed environment | T027 | opus | todo | |
