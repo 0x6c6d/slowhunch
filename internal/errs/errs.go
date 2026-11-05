@@ -14,6 +14,10 @@ const (
 	GitMissing    = "GIT_MISSING"
 	ProviderError = "PROVIDER_ERROR"
 	LintFailed    = "LINT_FAILED"
+	CapReached    = "CAP_REACHED"
+	PullFailed    = "PULL_FAILED"
+	PushFailed    = "PUSH_FAILED"
+	Behind        = "BEHIND"
 )
 
 // Error is a coded error with an optional hint and extra JSON members.
@@ -63,6 +67,10 @@ func ExitCode(err error) int {
 		return 2
 	case LintFailed:
 		return 3
+	case CapReached:
+		return 2
+	case PullFailed, PushFailed, Behind:
+		return 1
 	}
 	return 1
 }

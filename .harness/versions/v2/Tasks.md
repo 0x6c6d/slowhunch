@@ -31,7 +31,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 |----|-------|-------|------------|-------|--------|-------|
 | T000 | 0 | Preflight | — | supervisor | done | preflight ok |
 | T001 | 1 | Config v2 keys, defaults and validation | T000 | sonnet | done | config.go, store.go, config_test.go; v2 config keys + validation |
-| T002 | 1 | Error codes v2 | T000 | haiku | todo | |
+| T002 | 1 | Error codes v2 | T000 | haiku | done | errs.go, errs_test.go; v2 codes + exits |
 | T003 | 1 | Git policy tests: force and rewrite ban | T000 | opus | todo | |
 | T004 | 1 | Review queries in internal/synth | T001 | sonnet | todo | |
 | T005 | 1 | review command | T004 | sonnet | todo | |
