@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -54,6 +55,21 @@ func runHelper(mode string, rest []string) int {
 	case "fail":
 		fmt.Fprint(os.Stderr, "boom with test-key inside")
 		return 3
+	case "rawenv":
+		env := os.Environ()
+		sort.Strings(env)
+		fmt.Print(strings.Join(env, "\n"))
+		return 0
+	case "rawargs":
+		fmt.Print(strings.Join(rest, "\n"))
+		return 0
+	case "stdin":
+		b, _ := io.ReadAll(os.Stdin)
+		os.Stdout.Write(b)
+		return 0
+	case "big":
+		os.Stdout.Write(make([]byte, 4096))
+		return 0
 	case "sleep":
 		time.Sleep(5 * time.Second)
 		return reply("late")
@@ -181,4 +197,103 @@ func TestExecEmptyCommand(t *testing.T) {
 			t.Fatalf("command %q: got %v", c, err)
 		}
 	}
+}
+
+func TestRunArgv(t *testing.T) {
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	argv := func(args ...string) []string { return append([]string{self, helperMarker}, args...) }
+	ctx := context.Background()
+
+	t.Run("stdout", func(t *testing.T) {
+		out, err := RunArgv(ctx, argv("stdin"), []byte("hello input"), nil, 0, 1<<10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(out) != "hello input" {
+			t.Fatalf("got %q", out)
+		}
+	})
+
+	t.Run("env", func(t *testing.T) {
+		t.Setenv("SLOWHUNCH_LEAK", "1")
+		out, err := RunArgv(ctx, argv("rawenv"), nil, []string{"EXTRA_ONE=a", "EXTRA_TWO=b"}, 0, 1<<16)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"PATH=" + os.Getenv("PATH"), "EXTRA_ONE=a", "EXTRA_TWO=b"}
+		sort.Strings(want)
+		if string(out) != strings.Join(want, "\n") {
+			t.Fatalf("env:\n%s", out)
+		}
+		if strings.Contains(string(out), "SLOWHUNCH_LEAK") {
+			t.Fatalf("parent variable leaked: %s", out)
+		}
+	})
+
+	t.Run("noshell", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Chdir(dir)
+		args := []string{"a;echo hacked", "$(touch pwned)", "*"}
+		out, err := RunArgv(ctx, argv(append([]string{"rawargs"}, args...)...), nil, nil, 0, 1<<10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(out) != strings.Join(args, "\n") {
+			t.Fatalf("args not verbatim: %q", out)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "pwned")); err == nil {
+			t.Fatal("pwned was created")
+		}
+	})
+
+	t.Run("timeout", func(t *testing.T) {
+		start := time.Now()
+		_, err := RunArgv(ctx, argv("sleep"), nil, nil, 200*time.Millisecond, 1<<10)
+		if err == nil || !strings.Contains(err.Error(), "timed out after 200ms") {
+			t.Fatalf("got %v", err)
+		}
+		if d := time.Since(start); d > 3*time.Second {
+			t.Fatalf("timeout took %s", d)
+		}
+	})
+
+	t.Run("exit", func(t *testing.T) {
+		_, err := RunArgv(ctx, argv("fail"), nil, nil, 0, 1<<10)
+		if err == nil || !strings.Contains(err.Error(), "code 3") || !strings.Contains(err.Error(), "boom") {
+			t.Fatalf("got %v", err)
+		}
+		if errs.CodeOf(err) == errs.ProviderError || IsNotFound(err) {
+			t.Fatalf("unexpected classification: %v", err)
+		}
+	})
+
+	t.Run("cap", func(t *testing.T) {
+		_, err := RunArgv(ctx, argv("big"), nil, nil, 0, 100)
+		if err == nil || !strings.Contains(err.Error(), "output exceeds") {
+			t.Fatalf("got %v", err)
+		}
+	})
+
+	t.Run("notfound", func(t *testing.T) {
+		_, err := RunArgv(ctx, []string{"slowhunch-no-such-program-xyz"}, nil, nil, 0, 1<<10)
+		if !IsNotFound(err) {
+			t.Fatalf("lookup: got %v", err)
+		}
+		_, err = RunArgv(ctx, []string{filepath.Join(t.TempDir(), "missing")}, nil, nil, 0, 1<<10)
+		if !IsNotFound(err) {
+			t.Fatalf("path: got %v", err)
+		}
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		for _, a := range [][]string{nil, {}, {""}} {
+			_, err := RunArgv(ctx, a, nil, nil, 0, 1<<10)
+			if errs.CodeOf(err) != errs.BadInput {
+				t.Fatalf("argv %q: got %v", a, err)
+			}
+		}
+	})
 }
