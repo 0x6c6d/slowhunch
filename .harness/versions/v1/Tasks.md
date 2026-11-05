@@ -55,7 +55,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T030 | 5 | Intake reading, input checks, medium inference | T007 | sonnet | done | internal/intake + tests |
 | T031 | 5 | Intake normalization and text hash | T001 | sonnet | done | intake/normalize.go + tests |
 | T032 | 5 | Prompt fencing, look-alike neutralization, secret detector | T001 | opus | done | intake/fence.go, secret.go + tests |
-| T033 | 6 | Pipeline item types and gate step | T027, T030, T031, T032, T007 | sonnet | todo | |
+| T033 | 6 | Pipeline item types and gate step | T027, T030, T031, T032, T007 | sonnet | done | pipeline/types.go, gate.go + tests |
 | T034 | 6 | Extract step with code-enforced atom rules and caps | T033 | sonnet | todo | |
 | T035 | 6 | Place step: neighbours, model verdict, code decision | T033, T021 | opus | todo | |
 | T036 | 6 | add orchestration core: intake to commit, idempotent, dry-run | T034, T035, T025, T010, T011, T006 | opus | todo | |
