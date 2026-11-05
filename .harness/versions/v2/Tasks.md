@@ -39,7 +39,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T007 | 2 | Provider resolution by role and medium | T001 T006 | sonnet | done | Effective/ForRole by medium, Deps.ProviderFor+AuthorFor |
 | T008 | 2 | stats tokens for every role | T006 | haiku | done | stats.go + test; collide tokens row |
 | T009 | 3 | Exported scrubbed-env argv runner | T000 | opus | done | exec.go RunArgv+IsNotFound, TestRunArgv |
-| T010 | 3 | PDF intake via pdf.command | T001 T009 | opus | todo | |
+| T010 | 3 | PDF intake via pdf.command | T001 T009 | opus | done | intake ReadWith + PDF via RunArgv, tests adapted |
 | T011 | 3 | Batch add --from | T007 T010 | opus | todo | |
 | T012 | 3 | Wildcard lane | T011 | opus | todo | |
 | T013 | 3 | Per-medium cap runs_per_day | T002 T011 | sonnet | todo | |

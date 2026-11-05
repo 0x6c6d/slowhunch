@@ -55,10 +55,11 @@ func TestAddCLIPoem(t *testing.T) {
 
 func TestAddCLIErrors(t *testing.T) {
 	d := newFakeVault(t)
+	setPDFCommand(t, d, []string{"slowhunch-no-such-pdf-tool", "{file}"})
 	pdf := filepath.Join(t.TempDir(), "p.pdf")
 	os.WriteFile(pdf, []byte("%PDF-1.4\n"), 0o644)
 	rc, _, s := runAdd(d, "", pdf)
-	if rc != 2 || !strings.Contains(s, "UNSUPPORTED") {
+	if rc != 2 || !strings.Contains(s, "UNSUPPORTED") || !strings.Contains(s, "install pdftotext or set pdf.command") {
 		t.Fatalf("pdf rc=%d %s", rc, s)
 	}
 	rc, _, s = runAdd(d, strings.Repeat("a", 12001), "-", "--as", "article")

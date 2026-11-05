@@ -156,6 +156,7 @@ func TestAddInputErrors(t *testing.T) {
 		{"film no title", Options{Arg: "a scene in the rain at night", Medium: "film"}, errs.BadInput, ""},
 		{"art no text", Options{Arg: "-", Stdin: strings.NewReader("  \n"), Medium: "art", Title: "T"}, errs.Unsupported, intake.ArtHint},
 		{"missing hunch", Options{Arg: addArticle, Medium: "article", Hunch: "no-such-hunch"}, errs.NotFound, ""},
+		{"pdf missing tool", Options{Arg: pdf, PDFCommand: []string{"slowhunch-no-such-pdf-tool", "{file}"}}, errs.Unsupported, intake.PDFHint},
 	}
 	if n := len([]rune(cases[1].o.Arg)); n != 12001 {
 		t.Fatalf("too-long input has %d chars", n)

@@ -79,6 +79,7 @@ func cmdAdd(env *Env, args []string) (any, error) {
 	o := pipeline.Options{
 		Arg: pos[0], Stdin: env.Stdin, Medium: *as, URL: *url, Title: *title, Author: *author,
 		Note: *note, Hunch: *hunch, Force: *force, DryRun: env.DryRun, NoCommit: env.NoCommit,
+		PDFCommand: cfg.PDF.Command,
 	}
 	rep, err := pipeline.Add(context.Background(), d, o)
 	if err != nil {

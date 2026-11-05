@@ -39,6 +39,10 @@ func TestIntakeRead(t *testing.T) {
 	if _, err := Read(filepath.Join(dir, "missing.pdf"), nil); errs.CodeOf(err) != errs.Unsupported {
 		t.Fatal(err)
 	}
+	noTool := ReadOptions{PDFCommand: []string{"slowhunch-no-such-pdf-tool", "{file}"}}
+	if _, err := ReadWith(w("q.pdf", "%PDF"), nil, noTool); errs.CodeOf(err) != errs.Unsupported {
+		t.Fatal(err)
+	}
 	if _, err := Read(dir, nil); errs.CodeOf(err) != errs.BadInput {
 		t.Fatal(err)
 	}

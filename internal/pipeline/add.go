@@ -39,6 +39,9 @@ type Options struct {
 	Medium, URL, Title, Author, Note, Hunch string
 
 	Force, DryRun, NoCommit bool
+
+	// PDFCommand is pdf.command from config; empty leaves .pdf files UNSUPPORTED.
+	PDFCommand []string
 }
 
 var docFolders = []string{"notes", "sources", "hunches", "proposals", "topics"}
@@ -112,7 +115,7 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 	}
 
 	// 1. Intake.
-	in, err := intake.Read(o.Arg, o.Stdin)
+	in, err := intake.ReadWith(o.Arg, o.Stdin, intake.ReadOptions{PDFCommand: o.PDFCommand})
 	if err != nil {
 		return nil, err
 	}
