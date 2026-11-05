@@ -14,7 +14,7 @@ caps, `send_policy` other than `excerpt_only`, `prompts diff`. `anthropic` provi
 **Where the code lives / protected paths (no worker may touch):** code at repo root
 `/home/sa/workspace/code/slowhunch` (`go.mod`, `cmd/slowhunch/`, `internal/`, `Makefile`, `LICENSE`,
 `.gitignore`, `README.md`). Protected: the whole `.harness/` folder, `.claude/`, the "Delegation workflow"
-section of `CLAUDE.md` (only that section), `prompt.md`, `prompt_v2.md`, `.yipyip/`. `README.md` is written
+section of `CLAUDE.md` (only that section), `.yipyip/`. `README.md` is written
 only by the README task.
 
 ## Architecture

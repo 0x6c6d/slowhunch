@@ -9,7 +9,7 @@ verifications in `.harness/verify/v1/<ID>.sh`. IDs are unique within this versio
 The supervisor prepends these, verbatim, to every worker brief:
 
 - Repository root: `/home/sa/workspace/code/slowhunch`. Go module `github.com/0x6c6d/slowhunch`, go directive `1.27`. Once `Makefile` exists, `make check` (gofmt clean, `go vet ./...`, `go test ./...`, build) must pass for the whole repo when you finish.
-- Protected (never modify, create or delete anything in): the whole `.harness/` folder, `.claude/`, `.yipyip/`, `prompt.md`, `prompt_v2.md`, and the "Delegation workflow" section of `CLAUDE.md` (the rest of `CLAUDE.md` only in the docs task that names it). Touch only the files your task names, plus new test files for your own code; `README.md` only in the README task.
+- Protected (never modify, create or delete anything in): the whole `.harness/` folder, `.claude/`, `.yipyip/`, and the "Delegation workflow" section of `CLAUDE.md` (the rest of `CLAUDE.md` only in the docs task that names it). Touch only the files your task names, plus new test files for your own code; `README.md` only in the README task.
 - Do not commit, push, pull, stash or rewrite git history; leave all changes in the working tree.
 - Go standard library only: no third-party modules, `go.sum` must not exist, nothing installed globally. Format with `gofmt`.
 - No network: tests use only in-process fakes, `net/http/httptest` servers and local helper processes; never a real LLM endpoint or internet host. Tests create vaults and git repos only under `t.TempDir()`; never touch a real vault or this repository's own git state.

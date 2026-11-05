@@ -14,8 +14,7 @@ Johnson, *Where Good Ideas Come From*; there is no evidence the patterns improve
 `slowhunch stats` is part of the product.
 
 Scope of this baseline (v1): vault, `add` pipeline, CRUD/links/hunches, search, `verify`/`lint`/`stats`/
-`skill`, two providers, local git commit per run, README. Everything else is listed in section 9 and in
-`prompt_v2.md` (repo root, informational only, not a spec).
+`skill`, two providers, local git commit per run, README. Everything else is listed in section 9.
 
 ## 2. Core requirements
 
@@ -235,8 +234,7 @@ a daemon; multi-user sync; vault import; per-medium run-per-day caps; `send_poli
 `excerpt_only`.
 
 **Files that must not be touched by workers:** the whole `.harness/` folder, `.claude/`, the "Delegation
-workflow" section of `CLAUDE.md`, and the root `prompt.md` and `prompt_v2.md` (owner notes). `.harness/` is
-managed by the loop.
+workflow" section of `CLAUDE.md`. `.harness/` is managed by the loop.
 
 ## 6. Environment
 
@@ -335,7 +333,7 @@ managed by the loop.
 
 ## 9. Nice-to-haves
 
-Not part of v1 (see `prompt_v2.md` for detail): `collide` and `review`; wildcard lane and topic append
+Not part of v1 (planned in `.harness/versions/v2/spec.md`): `collide` and `review`; wildcard lane and topic append
 flow; git pull, push, `sync`; batch `add --from`; PDF text extraction; full `docs/` set, `examples/vault/`
 and scheduling docs; per-role provider tuning and run caps; further `send_policy` levels; better verse
 search (index, embeddings); `prompts diff`; MCP wrapper; vault import note.
