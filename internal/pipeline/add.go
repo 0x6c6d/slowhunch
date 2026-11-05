@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
@@ -46,6 +47,42 @@ func provErr(err error) (string, string) {
 		return e.Code, e.Message
 	}
 	return errs.ProviderError, err.Error()
+}
+
+// foreignConflict fails with CONFLICT when any of paths has uncommitted
+// changes that are not pending from an earlier (crashed) run. It guards the
+// natural inbox/source paths of a new source: a foreign file there must not be
+// silently side-stepped by a collision suffix. Without commits it is a no-op,
+// matching Txn.Touch.
+func foreignConflict(d Deps, noCommit bool, paths ...string) error {
+	if noCommit || d.Committer == nil {
+		return nil
+	}
+	st, err := d.Vault.LoadState()
+	if err != nil {
+		return err
+	}
+	pending := map[string]bool{}
+	for _, p := range st.Pending {
+		pending[p] = true
+	}
+	dirty, err := d.Committer.Dirty(paths)
+	if err != nil {
+		return err
+	}
+	var bad []string
+	for _, p := range dirty {
+		if !pending[p] {
+			bad = append(bad, p)
+		}
+	}
+	if len(bad) > 0 {
+		sort.Strings(bad)
+		e := errs.New(errs.Conflict, "uncommitted changes in "+strings.Join(bad, ", "), "commit or revert them first")
+		e.Extra = map[string]any{"paths": bad}
+		return e
+	}
+	return nil
 }
 
 // Add runs one intake item from reading to commit.
@@ -107,6 +144,10 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 	}
 
 	sid := vault.SourceID(medium, o.Author, o.Title, normalized)
+	noCommit := o.NoCommit || !d.Config.Git.Commit
+	if err := foreignConflict(d, noCommit, inboxPath(sid), sourcePath(sid)); err != nil {
+		return nil, err
+	}
 	sid = vault.UniqueID(sid, func(c string) bool {
 		if _, ok := ix.Get(c); ok {
 			return true
@@ -241,7 +282,6 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 	}
 
 	// 8. Writes: every path is touched before the first write.
-	noCommit := o.NoCommit || !d.Config.Git.Commit
 	txn, err := d.Vault.Begin("add", vault.TxnOptions{
 		RunID:          rep.RunID,
 		DryRun:         o.DryRun,

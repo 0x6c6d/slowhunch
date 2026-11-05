@@ -60,7 +60,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T035 | 6 | Place step: neighbours, model verdict, code decision | T033, T021 | opus | done | pipeline/place.go + tests |
 | T036 | 6 | add orchestration core: intake to commit, idempotent, dry-run | T034, T035, T025, T010, T011, T006 | opus | done | pipeline/add.go, write.go + tests; no-atoms writes nothing; dup/contradicts treated as extends until T037 |
 | T037 | 6 | add outcomes: corroboration, contradiction, echo, hunch evidence | T036 | opus | done | outcomes in add.go, write.go, outcomes_test.go; corroborations schema fixed in follow-up commit |
-| T038 | 6 | add crash resume, dirty-file conflict, exact commit | T036 | opus | todo | |
+| T038 | 6 | add crash resume, dirty-file conflict, exact commit | T036 | opus | done | git_test.go; add.go foreignConflict fix |
 | T039 | 6 | add CLI command and fake-model exec helper for CLI tests | T036, T028, T029, T013 | sonnet | todo | |
 | T040 | 7 | Agent sequence, schema and exit-code coverage tests | T015, T016, T018, T019, T023, T039 | sonnet | todo | |
 | T041 | 7 | Performance test on 2,000 atoms | T022, T024 | sonnet | todo | |
