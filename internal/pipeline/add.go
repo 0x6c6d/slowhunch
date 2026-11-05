@@ -29,6 +29,8 @@ type Deps struct {
 	// AuthorFor, when set, returns the writer string for the extract provider used.
 	AuthorFor func(role, medium string) string
 	Author    string // "agent:<provider>/<model>" for written atoms and added_by
+
+	meter *tokenMeter // run-wide token meter; set by Add and AddBatch
 }
 
 // Options are the per-run inputs of an add run.
@@ -124,6 +126,8 @@ type itemRun struct {
 	called bool
 	// wildcard means a rejected item kept by the wildcard lane; its atoms get the tag wildcard.
 	wildcard bool
+	// capHit means a provider call of this item was refused by tokens_per_run.
+	capHit bool
 }
 
 // prepareItem is stage 1 up to the gate: intake, checks, secret check,
@@ -217,6 +221,12 @@ func prepareItem(d Deps, o Options, loadIndex func() (*vault.Index, error), newR
 	if r.placeP, err = d.provider("place", medium); err != nil {
 		return nil, nil, err
 	}
+	if d.meter != nil {
+		limit := d.Config.Caps.ByMedium[medium].TokensPerRun
+		r.gateP = &meteredProvider{inner: r.gateP, meter: d.meter, limit: limit, hit: &r.capHit}
+		r.extractP = &meteredProvider{inner: r.extractP, meter: d.meter, limit: limit, hit: &r.capHit}
+		r.placeP = &meteredProvider{inner: r.placeP, meter: d.meter, limit: limit, hit: &r.capHit}
+	}
 	if d.AuthorFor != nil {
 		if a := d.AuthorFor("extract", medium); a != "" {
 			r.writer = a
@@ -239,6 +249,10 @@ func gateItem(ctx context.Context, d Deps, r *itemRun) {
 	keep, reason, gu, gerr := Gate(ctx, r.gateP, d.Prompts["gate"], r.it)
 	if gu != (provider.Usage{}) {
 		rep.AddCost("gate", toUsage(gu))
+	}
+	if r.capHit {
+		r.capFail()
+		return
 	}
 	if gerr != nil || !keep {
 		code, msg := "REJECTED", reason
@@ -267,6 +281,10 @@ func extractPlace(ctx context.Context, d Deps, r *itemRun, ix *vault.Index, note
 	// 5. Extract.
 	atoms, drops, eu, eerr := Extract(ctx, r.extractP, d.Prompts["extract"], it, d.Config.Caps)
 	rep.AddCost("extract", toUsage(eu))
+	if r.capHit {
+		r.capFail()
+		return nil, nil
+	}
 	if r.wildcard {
 		for k := range atoms {
 			atoms[k].Tags = addTag(atoms[k].Tags, wildcardTag)
@@ -315,6 +333,10 @@ func extractPlace(ctx context.Context, d Deps, r *itemRun, ix *vault.Index, note
 		dec, pu, perr := Place(ctx, r.placeP, d.Prompts["place"], a, it, nbs, d.Config.Place)
 		if pu != (provider.Usage{}) {
 			rep.AddCost("place", toUsage(pu))
+		}
+		if r.capHit {
+			r.capFail()
+			return nil, nil
 		}
 		if perr != nil {
 			code, msg := provErr(perr)
@@ -449,6 +471,7 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 		return nil, errs.New(errs.BadInput, "no vault", "")
 	}
 	now := d.clock()
+	d.meter = &tokenMeter{}
 	r, ix, err := prepareItem(d, o, func() (*vault.Index, error) {
 		ix, _, err := d.Vault.LoadIndex()
 		return ix, err
@@ -461,6 +484,9 @@ func Add(ctx context.Context, d Deps, o Options) (*report.Report, error) {
 	}
 	if err := checkCaps(d, []*itemRun{r}); err != nil {
 		return nil, err
+	}
+	if limit := d.Config.Caps.ByMedium[r.it.Medium].TokensPerRun; limit > 0 && d.meter.used >= limit {
+		return nil, capErr(r.it.Medium, limit)
 	}
 	runs := []*itemRun{r}
 	// 4. Gate, then the wildcard lane for a rejected item.
@@ -580,4 +606,44 @@ func countRuns(d Deps, txn *vault.Txn, dryRun bool, runs []*itemRun) error {
 	}
 	st.AddRuns(today, mediums)
 	return d.Vault.SaveState(st)
+}
+
+// tokenMeter counts the tokens in and out of every provider call of a run.
+type tokenMeter struct{ used int }
+
+func capErr(medium string, limit int) error {
+	return errs.New(errs.CapReached, fmt.Sprintf("medium %s reached its limit of %d tokens per run", medium, limit),
+		"raise caps.by_medium."+medium+".tokens_per_run")
+}
+
+// meteredProvider refuses a call once the run's meter has reached limit
+// (limit > 0); the call in flight always finishes and is counted.
+type meteredProvider struct {
+	inner provider.Provider
+	meter *tokenMeter
+	limit int
+	hit   *bool
+}
+
+func (m *meteredProvider) Complete(ctx context.Context, req provider.Request) (provider.Response, error) {
+	if m.limit > 0 && m.meter.used >= m.limit {
+		*m.hit = true
+		return provider.Response{}, capErr(req.Medium, m.limit)
+	}
+	resp, err := m.inner.Complete(ctx, req)
+	m.meter.used += resp.TokensIn + resp.TokensOut
+	return resp, err
+}
+
+// capFail ends the item without writes: a call was refused by tokens_per_run.
+func (r *itemRun) capFail() {
+	rep := r.rep
+	rep.Source = ""
+	rep.Counts["atoms"] = 0
+	rep.Errors = append(rep.Errors, report.ItemError{Item: r.it.SourceID, Code: errs.CapReached,
+		Reason: "the tokens_per_run limit of medium " + r.it.Medium + " was reached"})
+	rep.Counts["errors"] = len(rep.Errors)
+	rep.Git = report.GitInfo{Skipped: "cap-reached"}
+	r.done = true
+	r.rejected = false
 }

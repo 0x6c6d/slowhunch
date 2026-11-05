@@ -143,6 +143,7 @@ func AddBatch(ctx context.Context, d Deps, from string, o Options) (*BatchResult
 		RunID: vault.NewRunID(now()), Entries: entries,
 		runs: make([]*itemRun, len(entries)), failed: make([]error, len(entries)), written: make([]bool, len(entries)),
 	}
+	d.meter = &tokenMeter{}
 	runID := func() string { return st.RunID }
 	ix, _, err := d.Vault.LoadIndex()
 	if err != nil {
@@ -178,28 +179,6 @@ func AddBatch(ctx context.Context, d Deps, from string, o Options) (*BatchResult
 	if err := checkCaps(d, st.runs); err != nil {
 		return nil, err
 	}
-	for i, r := range st.runs {
-		e := entries[i]
-		if r == nil || r.done {
-			continue
-		}
-		gateItem(ctx, d, r)
-		if r.rejected {
-			st.Rejected = append(st.Rejected, e)
-			pool = append(pool, r)
-			poolEntry = append(poolEntry, i)
-		}
-	}
-
-	// Wildcard lane: the gate-rejected entries of the batch are one pool.
-	for k, kept := range chooseWildcards(d.Config.Place.WildcardShare, pool) {
-		recordWildcard(pool[k], entries[poolEntry[k]].Label(), kept)
-		if kept {
-			nKept++
-		}
-	}
-
-	// Stage 2: extract, place and write, per entry that passed the gate.
 	var txn *vault.Txn
 	noCommit := o.NoCommit || !d.Config.Git.Commit
 	var ids []string
@@ -208,43 +187,46 @@ func AddBatch(ctx context.Context, d Deps, from string, o Options) (*BatchResult
 	writtenHash := map[string]string{}
 	nNew := 0
 	dirty := false
-	for i, r := range st.runs {
+
+	// process is stage 2 for entry i: extract, place and write.
+	process := func(i int, r *itemRun) error {
 		if r == nil || r.done {
-			continue
+			return nil
 		}
 		if sid, ok := writtenHash[r.textHash]; ok {
 			r.rep.Errors = []report.ItemError{}
 			r.rep.Counts = map[string]int{}
 			markExisting(r.rep, sid)
 			r.done = true
-			continue
+			return nil
 		}
+		var err error
 		if dirty && !o.DryRun {
 			if ix, _, err = d.Vault.LoadIndex(); err != nil {
-				return nil, err
+				return err
 			}
 		}
 		ap, err := extractPlace(ctx, d, r, ix, noteTaken)
 		if err != nil {
 			st.fail(i, err)
-			continue
+			return nil
 		}
 		if ap == nil {
-			continue
+			return nil
 		}
 		if txn == nil {
 			if txn, err = d.begin(st.RunID, o.DryRun, noCommit); err != nil {
-				return nil, err
+				return err
 			}
 		}
 		if err := txn.Touch(touchPaths(r, ap)...); err != nil {
 			st.fail(i, err)
-			continue
+			return nil
 		}
 		// A failure after the first write leaves pending paths for crash-resume.
 		eids, ep, err := writeItem(txn, r, ap)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		dirty = true
 		st.written[i] = true
@@ -254,6 +236,39 @@ func AddBatch(ctx context.Context, d Deps, from string, o Options) (*BatchResult
 			planned[id] = true
 		}
 		nNew += len(ap.newIDs)
+		return nil
+	}
+
+	// Gate each entry and, when it passes, extract/place/write it at once, so a
+	// tokens_per_run limit is reached entry by entry. Rejected entries are pooled.
+	for i, r := range st.runs {
+		if r == nil || r.done {
+			continue
+		}
+		gateItem(ctx, d, r)
+		if r.rejected {
+			st.Rejected = append(st.Rejected, entries[i])
+			pool = append(pool, r)
+			poolEntry = append(poolEntry, i)
+			continue
+		}
+		if err := process(i, r); err != nil {
+			return nil, err
+		}
+	}
+
+	// Wildcard lane: the gate-rejected entries of the batch are one pool; the
+	// kept ones go on to stage 2.
+	for k, kept := range chooseWildcards(d.Config.Place.WildcardShare, pool) {
+		recordWildcard(pool[k], entries[poolEntry[k]].Label(), kept)
+		if kept {
+			nKept++
+		}
+	}
+	for k, r := range pool {
+		if err := process(poolEntry[k], r); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := countRuns(d, txn, o.DryRun, st.runs); err != nil {
