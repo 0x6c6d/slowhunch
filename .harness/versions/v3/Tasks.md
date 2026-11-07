@@ -22,7 +22,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T003 | 2 | Legacy vault unchanged + pipe round trip tests | T001 | sonnet | done | vault/wikilink_legacy_test.go |
 | T004 | 3 | README update | T001 | sonnet | done | README.md add paragraph |
 | T005 | 3 | CLAUDE.md architecture note | T001 | haiku | done | CLAUDE.md intake bullet |
-| T006 | 3 | Definition of Done | T001, T002, T003, T004, T005 | supervisor | todo | |
+| T006 | 3 | Definition of Done | T001, T002, T003, T004, T005 | supervisor | done | DoD passes |
 
 Status values: `todo` · `done` · `blocked` · `superseded`. No pipe characters inside cells.
 
