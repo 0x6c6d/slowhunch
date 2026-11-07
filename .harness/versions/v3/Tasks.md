@@ -16,7 +16,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 
 | ID | Phase | Title | Depends-on | Model | Status | Notes |
 |----|-------|-------|------------|-------|--------|-------|
-| T000 | 0 | Preflight | — | supervisor | todo | |
+| T000 | 0 | Preflight | — | supervisor | done | baseline green |
 | T001 | 1 | Wikilink strip in Normalize + unit tests | T000 | sonnet | todo | |
 | T002 | 2 | E2E: add then verify clean, raw quote rejected | T001 | sonnet | todo | |
 | T003 | 2 | Legacy vault unchanged + pipe round trip tests | T001 | sonnet | todo | |
