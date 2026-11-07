@@ -19,7 +19,7 @@ Go standard library only. `cmd/slowhunch/main.go` calls `cli.Run` and exits with
 - `internal/frontmatter`: parser and writer for the strict YAML-like frontmatter subset.
 - `internal/vault`: vault config, layout, index, lint, verify and transactions.
 - `internal/gitops`: the git wrapper; every git call goes through it (argv, never a shell). Pull is `--rebase --autostash` and aborts on conflict; push is plain `push <remote> <branch>`; behind count is read locally. Never fetch, force or rewrite history.
-- `internal/intake`: reads and checks input text (normalization, fencing, secret detection); `.pdf` text comes from `pdf.command` via `provider/exec`'s `RunArgv`.
+- `internal/intake`: reads and checks input text (normalization, fencing, secret detection); `.pdf` text comes from `pdf.command` via `provider/exec`'s `RunArgv`. Normalization also strips wikilink brackets `[[x]]` to `x` (not for code).
 - `internal/provider`: prompts and the `Provider` interface; subpackages `openai` (chat completions), `exec` (local program, JSON over stdio, plus the exported argv runner `RunArgv`: PATH-only env, no shell) and `fake` (tests).
 - `internal/pipeline`: per-item steps between intake and the vault (extract, gate, place, write).
 - `internal/synth`: collide pair selection and proposals, `review` queries (read-only).
