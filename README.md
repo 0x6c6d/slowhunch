@@ -102,6 +102,8 @@ Chance favors the connected mind.
 EOF
 ```
 
+Intake removes wikilink brackets from the text: `[[text]]` becomes `text` and `[[a|b]]` becomes `a|b`. This does not apply with `--as code`. It keeps quoted wiki text from being read as a slowhunch link. Notes added before this change are not rewritten, and re-adding an old file creates a new source because its text hash changes.
+
 ### add --from
 
 Ingest several files in one run. The batch file has one line per item, either `file` or `file|url|title|author`. A batch holds at most 50 entries and produces one commit.

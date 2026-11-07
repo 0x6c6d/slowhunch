@@ -20,7 +20,7 @@ The supervisor prepends these, verbatim, to every worker brief:
 | T001 | 1 | Wikilink strip in Normalize + unit tests | T000 | sonnet | done | normalize.go wikilink strip, wikilink_test.go |
 | T002 | 2 | E2E: add then verify clean, raw quote rejected | T001 | sonnet | done | wikilink_e2e_test.go, fakemodel_test.go evidence= arg |
 | T003 | 2 | Legacy vault unchanged + pipe round trip tests | T001 | sonnet | done | vault/wikilink_legacy_test.go |
-| T004 | 3 | README update | T001 | sonnet | todo | |
+| T004 | 3 | README update | T001 | sonnet | done | README.md add paragraph |
 | T005 | 3 | CLAUDE.md architecture note | T001 | haiku | todo | |
 | T006 | 3 | Definition of Done | T001, T002, T003, T004, T005 | supervisor | todo | |
 
