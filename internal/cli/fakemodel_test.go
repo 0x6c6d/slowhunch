@@ -101,6 +101,12 @@ func fakeModel() {
 		if num == 0 {
 			num = 1
 		}
+		// evidence=<text>: override the evidence the fake extract returns.
+		for _, a := range os.Args {
+			if e, ok := strings.CutPrefix(a, "evidence="); ok {
+				ev = e
+			}
+		}
 		words := strings.Fields(ev)
 		if len(words) > 6 {
 			words = words[:6]
