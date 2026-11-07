@@ -3,8 +3,11 @@ package intake
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"regexp"
 	"strings"
 )
+
+var wikilinkRe = regexp.MustCompile(`!?\[\[([^\[\]\n]+)\]\]`)
 
 var normReplacer = strings.NewReplacer(
 	" ", " ", " ", " ", " ", " ",
@@ -22,6 +25,13 @@ func Normalize(text, medium string) string {
 		return strings.TrimRight(text, "\n")
 	}
 	text = normReplacer.Replace(text)
+	for {
+		next := wikilinkRe.ReplaceAllString(text, "$1")
+		if next == text {
+			break
+		}
+		text = next
+	}
 	lines := strings.Split(text, "\n")
 	out := make([]string, 0, len(lines))
 	for _, l := range lines {
