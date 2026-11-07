@@ -9,6 +9,7 @@ pipeline (intake → gate → extract → place → write → report), CRUD/link
 `verify`, `stats`, `skill`, providers `openai-compatible` + `exec`, one local git commit per run, README.
 v2: `collide` (proposals), `review`, wildcard lane, `keep` (topic append), batch `add --from`, PDF text via
 `pdf.command`, per-role/per-medium providers, per-medium caps, git pull-before-write/optional push/`sync`.
+v3: intake strips wikilink brackets `[[x]]` to `x` (not for `code`) so quoted wiki text never becomes a link.
 **Explicitly deferred (product level):** `docs/`, `CONTRIBUTING.md`, `examples/`, MCP server,
 embeddings/vector DB, OCR/vision/audio, daemon/scheduler, multi-user conflict resolution, vault import,
 `send_policy` other than `excerpt_only`, `prompts diff`, `git fetch`. `anthropic` provider: dropped for good.
@@ -40,7 +41,8 @@ Module `github.com/0x6c6d/slowhunch`, go directive `1.27`, no third-party import
   git.{pull,require_pull,push,remote,branch}`, `state.json` `runs_by_day`, topic append for `keep`.
 - **internal/intake**: input reading (arg/stdin/file, `.txt`/`.md` only), size/empty checks, medium
   inference, normalization, line numbering, `text_hash`, immutable `inbox/<source-id>.txt`, prompt fencing
-  with random per-run delimiter + look-alike neutralization, secret-pattern detector. (since v1)
+  with random per-run delimiter + look-alike neutralization, secret-pattern detector. (since v1) v3:
+  `Normalize` strips `[[text]]` brackets (all media except `code`), repeated until stable (idempotent).
 - **internal/provider**: `Provider` interface `Complete(ctx, Request) (Response, error)` + registry;
   `openai-compatible` (`net/http`, the only outbound network code), `exec` (single `os/exec` call site, no
   shell, scrubbed env); JSON request/validate/repair-once helper; embedded prompts (`embed`) with
